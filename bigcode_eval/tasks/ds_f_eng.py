@@ -69,7 +69,8 @@ class DsFEng(Task):
         :param idx: int
             index of doc in the dataset to which the generation belongs
         """
-        prompt = self.get_prompt(self.dataset[idx])
+        dataset = self.get_dataset()
+        prompt = self.get_prompt(dataset[idx])
         generation = generation[len(prompt) :]
         return self._stop_at_stop_token(generation, self.stop_words)
 
@@ -84,9 +85,9 @@ class DsFEng(Task):
         return tabpfn_average_accuracy(
             predictions=generations,
             dataframe_paths=[self._dataframes_dir / dataframe_id for dataframe_id in references],
-            split_column="split",
+            split_column="ds_f_eng__split",
             train_split="train",
             test_split="test",
-            target_column="target",
+            target_column="ds_f_eng__target__response",
             timeout=20.0,
         )

@@ -81,8 +81,7 @@ def tabpfn_average_accuracy(
 
 
 def load_dataframe(dataframe_path: Path) -> pd.DataFrame:
-    # TODO(ajedrosz): some ok serialization
-    return pd.read_pickle(dataframe_path)
+    return pd.read_csv(dataframe_path)
 
 
 def remove_dataframe_columns(dataframe: pd.DataFrame, columns_to_remove: Set[str]) -> pd.DataFrame:
@@ -96,6 +95,7 @@ def tabpfn_accuracy(
     target_column: str, 
     timeout: float
 ) -> float:
+    breakpoint()
     train_target = train_dataframe[target_column]
     test_target = test_dataframe[target_column]
     train_features = remove_dataframe_columns(train_dataframe, columns_to_remove={target_column})
@@ -111,6 +111,8 @@ def tabpfn_accuracy(
         dataframe=test_features,
         timeout=timeout,
     )
+    if train_features_transformed is None or test_features_transformed is None:
+        return 0.0
     # TODO(ajedrosz): what with hparams
     # TODO(ajedrosz): does this do regression too
     classifier = TabPFNClassifier(device="cpu", N_ensemble_configurations=32)
