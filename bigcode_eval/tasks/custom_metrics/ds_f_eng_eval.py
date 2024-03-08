@@ -95,7 +95,6 @@ def tabpfn_accuracy(
     target_column: str, 
     timeout: float
 ) -> float:
-    breakpoint()
     train_target = train_dataframe[target_column]
     test_target = test_dataframe[target_column]
     train_features = remove_dataframe_columns(train_dataframe, columns_to_remove={target_column})

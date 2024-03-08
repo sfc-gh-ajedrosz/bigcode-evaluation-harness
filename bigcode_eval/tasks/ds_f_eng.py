@@ -16,7 +16,7 @@ class DsFEng(Task):
     answers, generation settings and evaluation methods.
     """
 
-    DATASET_PATH = "/Users/ajedrosz/Projects/code_gen_bench/bigcode-evaluation-harness/bigcode_eval/tasks/ds_f_eng/dataset_v1.jsonl"
+    DATASET_PATH = "/notebooks/bigcode-evaluation-harness/bigcode_eval/tasks/ds_f_eng/dataset_v1.jsonl"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
