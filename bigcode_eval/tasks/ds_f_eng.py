@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_average_accuracy, ScoreNormalizer
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, BaselineEvaluator, AccuracyEvaluator
 from bigcode_eval.base import Task
 
 _CITATION = """"""
@@ -17,7 +18,7 @@ class DsFEng(Task):
     """
 
     DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_2.jsonl"
-    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log3.jsonl"
+    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log4.jsonl"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
@@ -85,18 +86,31 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-
-        tabpfn_accuracies = tabpfn_average_accuracy(
-            predictions=generations,
-            dataframe_names=references,
-            dataframe_global_path=self._dataframes_dir,
-            split_column="ds_f_eng__split",
-            train_split="train",
-            test_split="test",
-            target_column="ds_f_eng__target__response",
+        from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, \
+            BaselineEvaluator, AccuracyEvaluator
+        data_processor = DataProcessor(dataframe_global_path=Path(self._dataframes_dir))
+        model_trainer = ModelTrainer(enable_categorical=True)
+        baseline_evaluator = BaselineEvaluator(enable_categorical=True)
+        accuracy_evaluator = AccuracyEvaluator(data_processor, model_trainer, baseline_evaluator)
+        tabpfn_accuracies = accuracy_evaluator.evaluate(
+            predictions=generations,  #List[str],
+            dataframe_names=references,  # List[Path],
             timeout=20.0,
             log_file=self.LOGGING_PATH,
+            do_baseline=True,
         )
+
+        # tabpfn_accuracies = tabpfn_average_accuracy(
+        #     predictions=generations,
+        #     dataframe_names=references,
+        #     dataframe_global_path=self._dataframes_dir,
+        #     split_column="ds_f_eng__split",
+        #     train_split="train",
+        #     test_split="test",
+        #     target_column="ds_f_eng__target__response",
+        #     timeout=20.0,
+        #     log_file=self.LOGGING_PATH,
+        # )
         # xgboost_accuracies = tabpfn_average_accuracy()
         # self.score_normalizer(tabpfn_accuracies)
 
