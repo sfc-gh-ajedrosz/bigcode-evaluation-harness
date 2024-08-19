@@ -211,10 +211,39 @@ class DataProcessor:
         else:
             return exec_globals["dataframe_transformed"]
 
+    def _transform_dataframe_inplace_three_tuple(self, prediction: str, data_split: DataSplit) -> Union[DataSplit, None]:
+        if len(prediction) == 0 and self.allow_no_transform:
+            return data_split
+        if os.getenv("HF_ALLOW_CODE_EVAL", 0) != "1":
+            raise ValueError(_WARNING)
+        # TODO(ajedrosz): header constant
+        df_transformation_with_assignment = f"""{prediction}
+        \nnew_train_x, new_train_target, new_test_x  = transform(train_x, train_target, test_x)"""
+        # TODO(ajedrosz): need to copy?
+        exec_globals = {"test_x": data_split.test_x,
+                        "train_x": data_split.train_x,
+                        "train_target": data_split.train_target}
+        result = []
+        unsafe_execute(
+            check_program=df_transformation_with_assignment,
+            result=result,
+            timeout=self.timeout,
+            exec_globals=exec_globals,
+        )
+        if result.pop() != "passed":
+            return None
+        else:
+            new_data_split = DataSplit(exec_globals["new_test_x"], data_split.test_target, exec_globals["new_train_x"], exec_globals["new_train_target"])
+            return new_data_split
     def transform_dataframe(self, prediction: str, data_split: DataSplit) -> DataSplit:
-        new_train_x = self._transform_dataframe_inplace(prediction, data_split.train_x)
-        new_test_x = self._transform_dataframe_inplace(prediction, data_split.test_x)
-        return DataSplit(new_test_x, data_split.test_target, new_train_x, data_split.train_target)
+        # new_train_x = self._transform_dataframe_inplace(prediction, data_split.train_x)
+        # new_test_x = self._transform_dataframe_inplace(prediction, data_split.test_x)
+        transformed_ds = self._transform_dataframe_inplace_three_tuple(prediction, data_split)
+        if transformed_ds is None:
+            return data_split
+        else:
+            return transformed_ds
+
 
     @staticmethod
     def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -253,6 +282,8 @@ class Evaluator:
         accuracies = defaultdict(dict)
         for dataframe_predictions, dataframe_name in zip(predictions, dataframe_names):
             for model in self.models:
+                if dataframe_name not in ['shubhamgupta012__titanic-dataset.csv']:
+                    continue
                 data_split = self.data_processor.load_dataframe(dataframe_name)
                 print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
                 # if data_split.train_x.shape[0] > 5000 or data_split.train_x.shape[1] > 10000:
@@ -261,7 +292,28 @@ class Evaluator:
                 if do_baseline:
                     data_split = model.baseline_encode(data_split)
                 else:
+                    from .kernels import kernels
+                    try:
+                        prediction = kernels[dataframe_name]
+                    except:
+                        pass
+
                     data_split = self.data_processor.transform_dataframe(prediction, data_split)
+                    from copy import deepcopy
+                    bckp_data_split = deepcopy(data_split)
+                    for i in range(7):
+                        data_split = bckp_data_split
+                        train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+                        do_these = tuple((i,))
+                        try:
+                            train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=do_these)
+                        except Exception as e:
+                            print(e)
+                        new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+                        accuracy = Evaluator._evaluate(model, new_ds)
+                        print(f"Do {do_these} => {accuracy}")
+
+
                 accuracy = Evaluator._evaluate(model, data_split)
                 accuracies[dataframe_name][model.model_slug] = accuracy
             self.log_result(f"{dataframe_name}: {accuracies}")
@@ -273,3 +325,58 @@ class Evaluator:
         with open(self.logging_path, 'at') as fh:
             fh.write(log_result + '\n')
 
+
+def transform(train_x, train_y, test_x, do_these=()):
+    def extract_title(df):
+        df['Title'] = df['Name'].apply(lambda x: x.split(',')[1].split('.')[0].strip())
+        return df
+
+    def family_size(df):
+        df['FamilySize'] = df['SibSp'] + df['Parch'] + 1
+        df['IsAlone'] = (df['FamilySize'] == 1).astype(int)
+        return df
+
+    def cabin_features(df):
+        df['Cabin'] = df['Cabin'].fillna('Unknown')
+        df['Deck'] = df['Cabin'].apply(lambda x: x[0])
+        return df
+
+    def ticket_prefix(df):
+        df['TicketPrefix'] = df['Ticket'].apply(
+            lambda x: ''.join(filter(str.isalpha, x.split()[0])) if not x.split()[0].isdigit() else 'None')
+        return df
+
+    def age_class_interaction(df):
+        df['Age*Class'] = df['Age'] * df['Pclass']
+        return df
+
+    def fare_per_person(df):
+        df['FarePerPerson'] = df['Fare'] / df['FamilySize']
+        return df
+
+    if 1 in do_these:
+        train_x = extract_title(train_x)
+        test_x = extract_title(test_x)
+
+    if 2 in do_these:
+        train_x = family_size(train_x)
+        test_x = family_size(test_x)
+
+    if 3 in do_these:
+        train_x = cabin_features(train_x)
+        test_x = cabin_features(test_x)
+
+    if 4 in do_these:
+        train_x = ticket_prefix(train_x)
+        test_x = ticket_prefix(test_x)
+
+    if 5 in do_these:       # improves  0.8064516129032258
+        train_x = age_class_interaction(train_x)
+        test_x = age_class_interaction(test_x)
+
+    if 6 in do_these:       # 0.7976539589442815
+        train_x = fare_per_person(train_x)
+        test_x = fare_per_person(test_x)
+
+    # Continue with encoding and other preprocessing
+    return train_x, train_y, test_x

@@ -18,7 +18,7 @@ class DsFEng(Task):
     """
 
     DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_2.jsonl"
-    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log4.jsonl"
+    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log5.jsonl"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
@@ -93,7 +93,7 @@ class DsFEng(Task):
         # XGBoostModel(enable_categorical=True), TabPFNModel(enable_categorical=True)
         evaluator = Evaluator(data_processor, models, self.LOGGING_PATH)
 
-        results = evaluator.evaluate(generations, references, do_baseline=True)
+        results = evaluator.evaluate(generations, references, do_baseline=False)
         print(results)
 
 
