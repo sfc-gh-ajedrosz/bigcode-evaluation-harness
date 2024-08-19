@@ -77,7 +77,7 @@ class DsFEng(Task):
         generation = generation[len(prompt):]
         return self._stop_at_stop_token(generation, self.stop_words)
 
-    def process_results(self, generations, references):
+    def process_results(self, generations, references, models=("tabpfn", "xgboost")):
         """Takes the list of LM generations and evaluates them against ground truth references,
         returning the metric for the generations.
         :param generations: list(list(str))
@@ -86,19 +86,30 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-        from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, \
-            BaselineEvaluator, AccuracyEvaluator
-        data_processor = DataProcessor(dataframe_global_path=Path(self._dataframes_dir))
-        model_trainer = ModelTrainer(enable_categorical=True)
-        baseline_evaluator = BaselineEvaluator(enable_categorical=True)
-        accuracy_evaluator = AccuracyEvaluator(data_processor, model_trainer, baseline_evaluator)
-        tabpfn_accuracies = accuracy_evaluator.evaluate(
-            predictions=generations,  #List[str],
-            dataframe_names=references,  # List[Path],
-            timeout=20.0,
-            log_file=self.LOGGING_PATH,
-            do_baseline=True,
-        )
+
+        from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_2_refactored import DataProcessor, \
+            XGBoostModel, TabPFNModel, Evaluator
+        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=True)
+        # XGBoostModel(enable_categorical=True), TabPFNModel(enable_categorical=True)
+        evaluator = Evaluator(data_processor, models, self.LOGGING_PATH)
+
+        results = evaluator.evaluate(generations, references, do_baseline=True)
+        print(results)
+
+
+        # from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, \
+        #     BaselineEvaluator, AccuracyEvaluator
+        # data_processor = DataProcessor(dataframe_global_path=Path(self._dataframes_dir))
+        # model_trainer = ModelTrainer(enable_categorical=True)
+        # baseline_evaluator = BaselineEvaluator(enable_categorical=True)
+        # accuracy_evaluator = AccuracyEvaluator(data_processor, model_trainer, baseline_evaluator)
+        # tabpfn_accuracies = accuracy_evaluator.evaluate(
+        #     predictions=generations,  #List[str],
+        #     dataframe_names=references,  # List[Path],
+        #     timeout=20.0,
+        #     log_file=self.LOGGING_PATH,
+        #     do_baseline=True,
+        # )
 
         # tabpfn_accuracies = tabpfn_average_accuracy(
         #     predictions=generations,
