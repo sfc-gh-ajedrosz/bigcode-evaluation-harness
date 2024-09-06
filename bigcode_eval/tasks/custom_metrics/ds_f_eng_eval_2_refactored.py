@@ -6,9 +6,14 @@ from abc import ABC, abstractmethod
 import os
 from collections import defaultdict, namedtuple
 from typing import List, Dict, Set, Union, Tuple
+from copy import deepcopy
+from itertools import combinations
+
+import bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies
 import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies import transform
+from sklearn.metrics import accuracy_score, mean_absolute_error
 from sklearn.preprocessing import OneHotEncoder
 import xgboost as xgb
 from tabpfn import TabPFNClassifier
@@ -60,9 +65,10 @@ class BaseModel(ABC):
 class XGBoostModel(BaseModel):
     model_slug: str = "xgboost"
 
-    def __init__(self, enable_categorical: bool = False) -> None:
+    def __init__(self, enable_categorical: bool = False, is_regression=False) -> None:
         super().__init__(enable_categorical)
         self.model = None
+        self.is_regression = is_regression
 
     def baseline_encode(self, data_split: DataSplit) -> DataSplit:
         test_x = XGBoostModel.convert_objects_to_category(data_split.test_x)
@@ -72,9 +78,13 @@ class XGBoostModel(BaseModel):
         return DataSplit(test_x, data_split.test_target, train_x, data_split.train_target)
 
     def fit(self, train_x: pd.DataFrame, train_target: pd.Series):
-        self.model = xgb.XGBModel(enable_categorical=self.enable_categorical,
+        if self.is_regression:
+            self.model = xgb.XGBRegressor(enable_categorical=self.enable_categorical)
+            self.model.fit(train_x, train_target)
+        else:
+            self.model = xgb.XGBModel(enable_categorical=self.enable_categorical,
                                   num_class=len(train_target.unique()))
-        self.model.fit(train_x, train_target.astype('category').cat.codes)
+            self.model.fit(train_x, train_target.astype('category').cat.codes)
 
     def predict(self, test_x: pd.DataFrame) -> np.ndarray:
         return self.model.predict(test_x)
@@ -235,6 +245,7 @@ class DataProcessor:
         else:
             new_data_split = DataSplit(exec_globals["new_test_x"], data_split.test_target, exec_globals["new_train_x"], exec_globals["new_train_target"])
             return new_data_split
+
     def transform_dataframe(self, prediction: str, data_split: DataSplit) -> DataSplit:
         # new_train_x = self._transform_dataframe_inplace(prediction, data_split.train_x)
         # new_test_x = self._transform_dataframe_inplace(prediction, data_split.test_x)
@@ -243,7 +254,6 @@ class DataProcessor:
             return data_split
         else:
             return transformed_ds
-
 
     @staticmethod
     def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -255,18 +265,25 @@ class DataProcessor:
 
 
 class Evaluator:
-    def __init__(self, data_processor: DataProcessor, model_names: str, logging_path: Path) -> None:
+    def __init__(self, data_processor: DataProcessor, logging_path: Path, metadata: pd.DataFrame) -> None:
         self.data_processor = data_processor
         self.logging_path = logging_path
-        self.models = [model_type(enable_categorical=True) for model_type in (XGBoostModel, TabPFNModel) if model_type.model_slug in model_names]
+        self.models_classification = XGBoostModel(enable_categorical=True, is_regression=False)
+        self.models_regression = XGBoostModel(enable_categorical=True, is_regression=True)
+        self.metadata = metadata
 
     @staticmethod
-    def _evaluate(model: BaseModel, data_split: DataSplit) -> float:
+    def _evaluate(model: BaseModel, data_split: DataSplit, is_regr: bool = False) -> float:
         train_x, test_x = data_split.train_x, data_split.test_x
         try:
             model.fit(train_x, data_split.train_target)
             predictions = model.predict(test_x)
-            score = accuracy_score(data_split.test_target.astype('category').cat.codes, np.round(predictions))
+            if is_regr:
+                score = mean_absolute_error(data_split.test_target, predictions)
+                # from sklearn import metrics
+                # score = metrics.r2_score(data_split.test_target, predictions)
+            else:
+                score = accuracy_score(data_split.test_target.astype('category').cat.codes, np.round(predictions))
         except Exception as e:
             print(e)
             score = 0
@@ -281,43 +298,68 @@ class Evaluator:
 
         accuracies = defaultdict(dict)
         for dataframe_predictions, dataframe_name in zip(predictions, dataframe_names):
-            for model in self.models:
-                if dataframe_name not in ['shubhamgupta012__titanic-dataset.csv']:
-                    continue
-                data_split = self.data_processor.load_dataframe(dataframe_name)
-                print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
-                # if data_split.train_x.shape[0] > 5000 or data_split.train_x.shape[1] > 10000:
-                #     continue
-                prediction = dataframe_predictions[0]   # FIXME: why like this
-                if do_baseline:
-                    data_split = model.baseline_encode(data_split)
-                else:
-                    from .kernels import kernels
-                    try:
-                        prediction = kernels[dataframe_name]
-                    except:
-                        pass
+            df_meta = self.metadata[(self.metadata['ref'].str.replace("/", "__") + '.csv') == dataframe_name]#[0]
+            try:
+                is_regr = (df_meta['task_type'] == 'regression').item()
+            except:
+                pass
+            if is_regr:
+                model = self.models_regression
+            else:
+                model = self.models_classification
+            # for model in self.models:
+            # if dataframe_name in ['dhanasekarjaisankar__correlation-between-posture-personality-trait.csv',
+            #                       'sanskar457__fraud-transaction-detection.csv'
+            #                       ]:
+            #     continue
+            # if dataframe_name in ['shubhamgupta012__titanic-dataset.csv']:
+            #     break
+            # if dataframe_name not in ["maajdl__yeh-concret-data.csv"]:  #["iabhishekofficial__mobile-price-classification.csv"]:
+            #
+            #     continue
+            data_split = self.data_processor.load_dataframe(dataframe_name)
+            print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
+            # if data_split.train_x.shape[0] > 5000 or data_split.train_x.shape[1] > 10000:
+            #     continue
+            prediction = dataframe_predictions[0]   # FIXME: why like this
+            if do_baseline:
+                data_split = model.baseline_encode(data_split)
+            else:
+                from .kernels import kernels
+                try:
+                    prediction = kernels[dataframe_name]
+                except:
+                    pass
 
-                    data_split = self.data_processor.transform_dataframe(prediction, data_split)
-                    from copy import deepcopy
-                    bckp_data_split = deepcopy(data_split)
-                    for i in range(7):
-                        data_split = bckp_data_split
-                        train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
-                        do_these = tuple((i,))
-                        try:
-                            train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=do_these)
-                        except Exception as e:
-                            print(e)
-                        new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
-                        accuracy = Evaluator._evaluate(model, new_ds)
-                        print(f"Do {do_these} => {accuracy}")
+                data_split = do_concrete_strength_regression_kernel_studies(data_split, self.data_processor, prediction, model)
+                # data_split = do_kernel_studies_weather(data_split, self.data_processor, prediction, model)
 
+                # data_split = self.data_processor.transform_dataframe(prediction, data_split)
+                # from copy import deepcopy
+                # bckp_data_split = deepcopy(data_split)
+                #
+                # for i in range(7):
+                #     data_split = bckp_data_split
+                #     train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+                #     do_these = tuple((i,))
+                #     try:
+                #         train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=do_these)
+                #     except Exception as e:
+                #         print(e)
+                #     new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+                #     accuracy = Evaluator._evaluate(model, new_ds)
+                #     print(f"Do {do_these} => {accuracy}")
 
-                accuracy = Evaluator._evaluate(model, data_split)
-                accuracies[dataframe_name][model.model_slug] = accuracy
-            self.log_result(f"{dataframe_name}: {accuracies}")
-
+            accuracy = Evaluator._evaluate(model, data_split, is_regr)
+            accuracies[dataframe_name][model.model_slug + ("_MAE" if is_regr else '_ACC')] = accuracy
+        self.log_result(f"{dataframe_name}: {accuracies}")
+        if do_baseline:
+            # Saving the defaultdict to a file
+            import pickle
+            with open(
+                    "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores2.pickle",
+                    'wb') as handle:
+                pickle.dump(accuracies, handle, protocol=pickle.HIGHEST_PROTOCOL)
         return accuracies
 
     def log_result(self, log_result: str):
@@ -326,57 +368,214 @@ class Evaluator:
             fh.write(log_result + '\n')
 
 
-def transform(train_x, train_y, test_x, do_these=()):
-    def extract_title(df):
-        df['Title'] = df['Name'].apply(lambda x: x.split(',')[1].split('.')[0].strip())
-        return df
+#######   #######   #######   #######   #######   #######
+#######   #######   #######   #######   #######   #######
+def do_concrete_strength_regression_kernel_studies(data_split_pre, data_processor, prediction, model, do_study=True):
+    from .concrete_strenght_regression import transform_data, transform_data_products, transform_data_best_features
+    bckp_data_split = deepcopy(data_split_pre)
+    is_regr=True
+    prods_that_help = [(0), (4, 31), (4, 30, 33), (4, 20, 33, 47), (4, 25, 30, 31), (4, 30, 31, 33), (4, 30, 33, 44), (4, 31, 33, 44)]
+    if do_study:
+        results = {}
+        improved = []
+        improved_prods = []
+        for prod_j in prods_that_help:
+            for i in range(80):
+                data_split = deepcopy(bckp_data_split)
+                train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+                try:
+                    train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
+                                                              data_split.test_x, do_these=(i,))
+                    train_x, train_y, test_x = transform_data_products(data_split.train_x, data_split.train_target,
+                                                              data_split.test_x, do_these=prod_j)
+                    # train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=(i,))
+                except Exception as e:
+                    print(e)
+                new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+                accuracy = Evaluator._evaluate(model, new_ds, is_regr=is_regr)
+                print(f"Do {i}, prod {prod_j} => {accuracy}")
+                results[i] = accuracy
+                if accuracy > results[0]:       # xhange sign according to is_regr
+                    improved.append(i)
+                    improved_prods.append(prod_j)
 
-    def family_size(df):
-        df['FamilySize'] = df['SibSp'] + df['Parch'] + 1
-        df['IsAlone'] = (df['FamilySize'] == 1).astype(int)
-        return df
+        # Assuming `improved` is already populated
+        all_combinations = generate_all_combinations(improved)
+        for prod_j in prods_that_help[1:]:
+            for combo in all_combinations:
+                if len(combo)<7:
+                    continue
+                data_split = deepcopy(bckp_data_split)
+                train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+                do_these = combo
+                try:
+                    train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
+                                                              data_split.test_x, do_these=do_these)
+                    train_x, train_y, test_x = transform_data_products(data_split.train_x, data_split.train_target,
+                                                              data_split.test_x, do_these=prod_j)
+                except Exception as e:
+                    print(e)
+                new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+                accuracy = Evaluator._evaluate(model, new_ds, is_regr=is_regr)
+                print(f"Do {do_these}, prod {prod_j} => {accuracy}")
+                results[(do_these, prod_j)] = accuracy
 
-    def cabin_features(df):
-        df['Cabin'] = df['Cabin'].fillna('Unknown')
-        df['Deck'] = df['Cabin'].apply(lambda x: x[0])
-        return df
+                if accuracy > results[0]:
+                    improved.append(do_these)
 
-    def ticket_prefix(df):
-        df['TicketPrefix'] = df['Ticket'].apply(
-            lambda x: ''.join(filter(str.isalpha, x.split()[0])) if not x.split()[0].isdigit() else 'None')
-        return df
+    # data_split_tfed = DataSplit(test_x, data_split.test_target, train_x, train_y)
+    # accuracy = Evaluator._evaluate(model, data_split_tfed)
+    print(f"accuracy: {accuracy}")
 
-    def age_class_interaction(df):
-        df['Age*Class'] = df['Age'] * df['Pclass']
-        return df
 
-    def fare_per_person(df):
-        df['FarePerPerson'] = df['Fare'] / df['FamilySize']
-        return df
+def do_kernel_studies_weather(data_split_pre, data_processor, prediction, model, do_study=True):
+    from .kernel_weather_forecast import transform_data
+    bckp_data_split = deepcopy(data_split_pre)
 
-    if 1 in do_these:
-        train_x = extract_title(train_x)
-        test_x = extract_title(test_x)
+    if do_study:
+        results = {}
+        improved = []
+        for i in range(30):
+            data_split = deepcopy(bckp_data_split)
+            train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+            try:
+                train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
+                                                          data_split.test_x, do_these=(i,))
 
-    if 2 in do_these:
-        train_x = family_size(train_x)
-        test_x = family_size(test_x)
+                # train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=(i,))
+            except Exception as e:
+                print(e)
+            new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+            accuracy = Evaluator._evaluate(model, new_ds)
+            print(f"Do {i} => {accuracy}")
+            results[i] = accuracy
+            if accuracy > results[0]:
+                improved.append(i)
 
-    if 3 in do_these:
-        train_x = cabin_features(train_x)
-        test_x = cabin_features(test_x)
+        # Assuming `improved` is already populated
+        all_combinations = generate_all_combinations(improved)
+        for combo in all_combinations:
+            data_split = deepcopy(bckp_data_split)
+            train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+            do_these = combo
+            try:
+                train_x, train_y, test_x = transform_data(train_x, train_y, test_x, do_these=do_these)
+            except Exception as e:
+                print(e)
+            new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+            accuracy = Evaluator._evaluate(model, new_ds)
+            print(f"Do {do_these} => {accuracy}")
+            results[do_these] = accuracy
+            if accuracy > results[0]:
+                improved.append(do_these)
 
-    if 4 in do_these:
-        train_x = ticket_prefix(train_x)
-        test_x = ticket_prefix(test_x)
+    # data_split_tfed = DataSplit(test_x, data_split.test_target, train_x, train_y)
+    # accuracy = Evaluator._evaluate(model, data_split_tfed)
+    print(f"accuracy: {accuracy}")
 
-    if 5 in do_these:       # improves  0.8064516129032258
-        train_x = age_class_interaction(train_x)
-        test_x = age_class_interaction(test_x)
 
-    if 6 in do_these:       # 0.7976539589442815
-        train_x = fare_per_person(train_x)
-        test_x = fare_per_person(test_x)
+class ScoreNormalizer:
+    def __init__(self, baseline_results):
+        self.baseline_results = baseline_results
+        self.non_answer_penalty = -100
 
-    # Continue with encoding and other preprocessing
-    return train_x, train_y, test_x
+    def __call__(self, predictions):
+        normalized_scores = []
+        for dataset_name, baseline_result in self.baseline_results.items():
+            metric_name, baseline_score = list(baseline_result.items())[0]
+            try:
+                predicted_score = predictions[dataset_name][metric_name]
+            except KeyError:
+                print(f"Missing scores for {dataset_name}")
+                normalized_scores.append(self.non_answer_penalty)
+                continue
+            # _, predicted_score = list(prediction_v.items())[0]
+            is_regr = metric_name.endswith("MAE")
+            if is_regr:
+                normalized_score = error_rate_normalizer_mae(baseline_score, predicted_score)
+            else:
+                normalized_score = error_rate_normalizer_acc(baseline_score, predicted_score)
+            normalized_scores.append(normalized_score)
+        return sum(normalized_scores)/len(normalized_scores)
+
+
+def error_rate_normalizer_mae(baseline_score: float, predicted_score: float) -> float:
+    # 2.0 -> 0.5 , should be 0.75
+    # 1.0 -> 0.25 , should be 0.75
+    error_rate_reduction = 1.0 - (predicted_score/baseline_score)
+    return error_rate_reduction
+
+
+def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> float:
+    # 0.6 -> 0.9 , should be 0.75
+    # 0.9 -> 0.975 , should be 0.75
+    baseline_error_rate = 1.0 - baseline_score
+    predicted_error_rate = 1.0 - predicted_score
+    error_rate_reduction = (baseline_error_rate-predicted_error_rate)/baseline_error_rate
+    return error_rate_reduction
+
+
+##### ##### ##### ##### ##### ##### ##### ##### ##### ##### ##### #####
+
+
+def do_kernel_studies_personality(data_split_pre, data_processor, prediction, model, do_study=False):
+    data_split_new = data_processor.transform_dataframe(prediction, data_split_pre)
+    bckp_data_split = deepcopy(data_split_new)
+    if do_study:
+        results = {}
+        improved = []
+        for i in range(23):
+            data_split = deepcopy(bckp_data_split)
+            train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+            try:
+                train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=(i,))
+            except Exception as e:
+                print(e)
+            new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+            accuracy = Evaluator._evaluate(model, new_ds)
+            print(f"Do {i} => {accuracy}")
+            results[i] = accuracy
+            if accuracy > results[0]:
+                improved.append(i)
+
+        # Assuming `improved` is already populated
+        all_combinations = generate_all_combinations(improved)
+        for combo in all_combinations:
+            data_split = deepcopy(bckp_data_split)
+            train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
+            do_these = combo
+            try:
+                train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=do_these)
+            except Exception as e:
+                print(e)
+            new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
+            accuracy = Evaluator._evaluate(model, new_ds)
+            print(f"Do {do_these} => {accuracy}")
+            results[do_these] = accuracy
+            if accuracy > results[0]:
+                improved.append(do_these)
+    return data_split_new
+
+
+def generate_all_combinations(improved_list):
+    all_combinations = []
+    # Generate combinations for all lengths from 1 to the length of the list
+    for r in range(2, len(improved_list) + 1):
+        all_combinations.extend(combinations(improved_list, r))
+    return all_combinations
+#######   #######   #######   #######   #######   #######   #######   #######   #######   #######   #######   #######
+#######   #######   #######   #######   #######   #######   #######   #######   #######   #######   #######   #######
+
+
+import pandas as pd
+import numpy as np
+
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+
+## 6-
+
+
+# Example usage:
+# Assuming train_x, train_y, and test_x are properly defined pandas DataFrame and Series
+# train_x_transformed, train_y_transformed, test_x_transformed = transform(train_x, train_y, test_x)

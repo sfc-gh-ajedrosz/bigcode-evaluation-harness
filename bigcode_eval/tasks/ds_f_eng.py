@@ -4,9 +4,12 @@ import fcntl
 import json
 import logging
 from pathlib import Path
+import pandas as pd
+import pickle
 
-from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_average_accuracy, ScoreNormalizer
-from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, BaselineEvaluator, AccuracyEvaluator
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_average_accuracy
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_2_refactored import DataProcessor, \
+    XGBoostModel, TabPFNModel, Evaluator, ScoreNormalizer
 from bigcode_eval.base import Task
 
 _CITATION = """"""
@@ -17,8 +20,11 @@ class DsFEng(Task):
     answers, generation settings and evaluation methods.
     """
 
-    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_2.jsonl"
-    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log5.jsonl"
+    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_3.jsonl"
+    DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_8"
+    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta2.csv"
+    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log7.jsonl"
+    BASELINE_SCORES = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores4.pickle"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
@@ -28,9 +34,17 @@ class DsFEng(Task):
         )
         self._ds_f_eng_dir = Path(__file__).parent / "ds_f_eng"
         self._ds_f_eng_dir.mkdir(parents=True, exist_ok=True)
-        self._dataframes_dir = Path("/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_4")  # self._ds_f_eng_dir / "ds_f_eng_dataframes"
+        self._dataframes_dir = Path(self.DATAFRAME_PATH)  # self._ds_f_eng_dir / "ds_f_eng_dataframes"
+        self.metadata = pd.read_csv(self.METADATA_PATH)
         self.timeout = timeout
-        self.score_normalizer = ScoreNormalizer()
+        # Loading the defaultdict from a file
+        try:
+            with open(self.BASELINE_SCORES, 'rb') as handle:
+                self.baseline_scores = pickle.load(handle)
+        except FileNotFoundError:
+            self.baseline_scores = {}
+            print(f"file {self.BASELINE_SCORES} not found. Will save there current baseline outputs.")
+        self.score_normalizer = ScoreNormalizer(self.baseline_scores)
         # TODO(ajedrosz): fix once move to hub
         # self._download_dataframes()
 
@@ -77,7 +91,7 @@ class DsFEng(Task):
         generation = generation[len(prompt):]
         return self._stop_at_stop_token(generation, self.stop_words)
 
-    def process_results(self, generations, references, models=("tabpfn", "xgboost")):
+    def process_results(self, generations, references):
         """Takes the list of LM generations and evaluates them against ground truth references,
         returning the metric for the generations.
         :param generations: list(list(str))
@@ -86,43 +100,16 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-
-        from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_2_refactored import DataProcessor, \
-            XGBoostModel, TabPFNModel, Evaluator
         data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=True)
         # XGBoostModel(enable_categorical=True), TabPFNModel(enable_categorical=True)
-        evaluator = Evaluator(data_processor, models, self.LOGGING_PATH)
 
-        results = evaluator.evaluate(generations, references, do_baseline=False)
+        evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
+
+        results = evaluator.evaluate(generations, references, do_baseline=True)
         print(results)
 
 
-        # from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_refactored import DataProcessor, ModelTrainer, \
-        #     BaselineEvaluator, AccuracyEvaluator
-        # data_processor = DataProcessor(dataframe_global_path=Path(self._dataframes_dir))
-        # model_trainer = ModelTrainer(enable_categorical=True)
-        # baseline_evaluator = BaselineEvaluator(enable_categorical=True)
-        # accuracy_evaluator = AccuracyEvaluator(data_processor, model_trainer, baseline_evaluator)
-        # tabpfn_accuracies = accuracy_evaluator.evaluate(
-        #     predictions=generations,  #List[str],
-        #     dataframe_names=references,  # List[Path],
-        #     timeout=20.0,
-        #     log_file=self.LOGGING_PATH,
-        #     do_baseline=True,
-        # )
-
-        # tabpfn_accuracies = tabpfn_average_accuracy(
-        #     predictions=generations,
-        #     dataframe_names=references,
-        #     dataframe_global_path=self._dataframes_dir,
-        #     split_column="ds_f_eng__split",
-        #     train_split="train",
-        #     test_split="test",
-        #     target_column="ds_f_eng__target__response",
-        #     timeout=20.0,
-        #     log_file=self.LOGGING_PATH,
-        # )
-        # xgboost_accuracies = tabpfn_average_accuracy()
-        # self.score_normalizer(tabpfn_accuracies)
+        normalized_score = self.score_normalizer(results)
+        return normalized_score
 
 

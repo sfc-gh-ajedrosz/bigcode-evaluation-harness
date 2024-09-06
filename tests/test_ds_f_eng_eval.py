@@ -2,7 +2,7 @@ import pytest
 
 import pandas as pd
 
-from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_accuracy, _transform_dataframe_inplace
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import get_accuracy, _transform_dataframe_inplace
 
 
 def test_transform_dataframe_inplace():
@@ -74,7 +74,7 @@ def test_tabpfn_accuracy(prediction, expected_avg_acc):
         ],
         columns=["f1", "f2", "target"]
     )
-    assert tabpfn_accuracy(
+    assert get_accuracy(
             prediction=prediction, 
             train_dataframe=train_df, 
             test_dataframe=test_df, 

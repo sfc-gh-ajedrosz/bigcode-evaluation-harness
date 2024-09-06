@@ -9,6 +9,8 @@ import pickle
 from pathlib import Path
 from copy import deepcopy
 import statistics
+
+import bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies
 import xgboost as xgb
 
 import numpy as np
@@ -238,8 +240,8 @@ def one_hot_encode(train_df, test_df, categorical_columns):
     fitted_onehot_encoder = OneHotEncoder(sparse_output=False, drop='first', handle_unknown='infrequent_if_exist').fit(train_df[categorical_columns])
 
     # transform data
-    train_oh = fitted_onehot_encoder.transform(train_df[categorical_columns])
-    test_oh = fitted_onehot_encoder.transform(test_df[categorical_columns])
+    train_oh = bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies.transform(train_df[categorical_columns])
+    test_oh = bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies.transform(test_df[categorical_columns])
     # turn back to pandas
     train_oh_df = pd.DataFrame(train_oh, columns=fitted_onehot_encoder.get_feature_names_out())
     test_oh_df = pd.DataFrame(test_oh, columns=fitted_onehot_encoder.get_feature_names_out())
@@ -342,7 +344,168 @@ dataframe_transformed = transform(dataframe)"""
 class ScoreNormalizer:
     def __init__(self):
         self.normalizer = error_rate_normalizer
-        self.baseline_results = {'dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': {'tabpfn_score': 0.45, 'xgboost_score': 0.35}, 'arashnic__taxi-pricing-with-mobility-analytics.csv': {'tabpfn_score': 0.4829048452118354, 'xgboost_score': 0.4965771658933597}, 'gauravtopre__bank-customer-churn-dataset.csv': {'tabpfn_score': 0.8384138785625774, 'xgboost_score': 0.8453531598513011}, 'shubhamgupta012__titanic-dataset.csv': {'tabpfn_score': 0.8123167155425219, 'xgboost_score': 0.7800586510263929}, 'shivamb__vehicle-claim-fraud-detection.csv': {'tabpfn_score': 0.9391444713478612, 'xgboost_score': 0.9389830508474576}, 'vicsuperman__prediction-of-music-genre.csv': {'tabpfn_score': 0.09790634166076666, 'xgboost_score': 0.13689693536967734}, 'mansoordaku__ckdisease.csv': {'tabpfn_score': 0.9867549668874173, 'xgboost_score': 0.6556291390728477}, 'imsparsh__churn-risk-rate-hackerearth-ml.csv': {'tabpfn_score': 0.3052887866901123, 'xgboost_score': 0.3150953604761261}, 'youssefaboelwafa__hotel-booking-cancellation-prediction.csv': {'tabpfn_score': 0.7977852672123255, 'xgboost_score': 0.8678038379530917}, 'fedesoriano__hepatitis-c-dataset.csv': {'tabpfn_score': 0.9042145593869731, 'xgboost_score': 0.9042145593869731}, 'danushkumarv__glass-identification-data-set.csv': {'tabpfn_score': 0.9178082191780822, 'xgboost_score': 0.958904109589041}, 'shibumohapatra__book-my-show.csv': {'tabpfn_score': 0.8702137132680321, 'xgboost_score': 0.967720391807658}, 'debasisdotcom__parkinson-disease-detection.csv': {'tabpfn_score': 0.9117647058823529, 'xgboost_score': 0.8970588235294118}, 'abisheksudarshan__customer-segmentation.csv': {'tabpfn_score': 0.47399199753770394, 'xgboost_score': 0.4838411819021237}, 'robikscube__eye-state-classification-eeg-dataset.csv': {'tabpfn_score': 0.5694259012016022, 'xgboost_score': 0.9237316421895861}, 'gauravduttakiit__bar-passage-qualification.csv': {'tabpfn_score': 0.9473420260782347, 'xgboost_score': 0.9393179538615848}, 'reihanenamdari__breast-cancer.csv': {'tabpfn_score': 0.8955676988463873, 'xgboost_score': 0.891317547055252}, 'mysarahmadbhat__lung-cancer.csv': {'tabpfn_score': 0.9126984126984127, 'xgboost_score': 0.9047619047619048}, 'imsparsh__jobathon-analytics-vidhya.csv': {'tabpfn_score': 0.7602658788774003, 'xgboost_score': 0.7492368291482029}, 'harish24__music-genre-classification.csv': {'tabpfn_score': 0.645320197044335, 'xgboost_score': 0.6231527093596059}, 'mitesh58__bollywood-movie-dataset.csv': {'tabpfn_score': 0.58203125, 'xgboost_score': 0.58203125}, 'jillanisofttech__brain-stroke-dataset.csv': {'tabpfn_score': 0.9500249875062469, 'xgboost_score': 0.9405297351324338}, 'olcaybolat1__dermatology-dataset-classification.csv': {'tabpfn_score': 0.9664429530201343, 'xgboost_score': 0.9463087248322147}, 'snassimr__data-for-investing-type-prediction.csv': {'tabpfn_score': 0.7123359580052493, 'xgboost_score': 0.7706036745406825}, 'creepyghost__uci-ionosphere.csv': {'tabpfn_score': 0.9206349206349206, 'xgboost_score': 0.9126984126984127}, 'divyansh22__crystal-system-properties-for-liion-batteries.csv': {'tabpfn_score': 0.6214285714285714, 'xgboost_score': 0.6285714285714286}, 'cherngs__heart-disease-cleveland-uci.csv': {'tabpfn_score': 0.8308823529411765, 'xgboost_score': 0.7573529411764706}, 'jeevannagaraj__indian-liver-patient-dataset.csv': {'tabpfn_score': 0.6864406779661016, 'xgboost_score': 0.635593220338983}, 'rashikrahmanpritom__heart-attack-analysis-prediction-dataset.csv': {'tabpfn_score': 0.8046875, 'xgboost_score': 0.734375}, 'adhoppin__customer-cellular-data.csv': {'tabpfn_score': 0.898635477582846, 'xgboost_score': 0.9161793372319688}, 'captainozlem__framingham-chd-preprocessed-data.csv': {'tabpfn_score': 0.8465736810187993, 'xgboost_score': 0.8265615524560339}, 'saadmansakib__smartphone-human-fall-dataset.csv': {'tabpfn_score': 0.9691011235955056, 'xgboost_score': 0.9719101123595506}, 'arunavakrchakraborty__australia-weather-data.csv': {'tabpfn_score': 0.7742468634963564, 'xgboost_score': 0.7738461923722235}, 'sammy123__lower-back-pain-symptoms-dataset.csv': {'tabpfn_score': 0.8728813559322034, 'xgboost_score': 0.8050847457627118}, 'uciml__default-of-credit-card-clients-dataset.csv': {'tabpfn_score': 0.8144216999410328, 'xgboost_score': 0.8144216999410328}, 'juliasuzuki__waze-dataset-to-predict-user-churn.csv': {'tabpfn_score': 0.8266970706893527, 'xgboost_score': 0.027188212594281704}, 'caesarlupum__betsstrategy.csv': {'tabpfn_score': 1.0, 'xgboost_score': 1.0}, 'henrysue__online-shoppers-intention.csv': {'tabpfn_score': 0.890536149471974, 'xgboost_score': 0.8883021933387489}, 'ulrikthygepedersen__tic-tac-toe.csv': {'tabpfn_score': 1.0, 'xgboost_score': 0.989100817438692}, 'pavansubhasht__ibm-hr-analytics-attrition-dataset.csv': {'tabpfn_score': 0.8894736842105263, 'xgboost_score': 0.8771929824561403}, 'antimoni__metabolic-syndrome.csv': {'tabpfn_score': 0.8203285420944558, 'xgboost_score': 0.8213552361396304}, 'shrushtijoshi__asteroid-impacts.csv': {'tabpfn_score': 0.6825015994881638, 'xgboost_score': 0.9584133077415227}, 'rajgupta2019__qsar-bioconcentration-classes-dataset.csv': {'tabpfn_score': 0.7353846153846154, 'xgboost_score': -1.0}, 'iammustafatz__diabetes-prediction-dataset.csv': {'tabpfn_score': 0.9598883155086879, 'xgboost_score': 0.9714057786752425}, 'yasserh__wine-quality-dataset.csv': {'tabpfn_score': 0.6334056399132321, 'xgboost_score': 0.6268980477223427}, 'mdmahmudulhasansuzan__students-adaptability-level-in-online-education.csv': {'tabpfn_score': 0.8707070707070707, 'xgboost_score': 0.8565656565656565}, 'gauravduttakiit__smoker-status-prediction-using-biosignals.csv': {'tabpfn_score': 0.7278468899521531, 'xgboost_score': 0.7641467304625199}, 'raniahelmy__no-show-investigate-dataset.csv': {'tabpfn_score': 0.7963009134386545, 'xgboost_score': 0.7950542850019267}, 'ayushtankha__70k-job-applicants-data-human-resource.csv': {'tabpfn_score': 0.7783236106846791, 'xgboost_score': 0.780541056868966}, 'sahasourav17__child-sexual-abuse-awareness-knowledge-level.csv': {'tabpfn_score': 0.9157986111111112, 'xgboost_score': 0.9184027777777778}, 'devzohaib__eligibility-prediction-for-loan.csv': {'tabpfn_score': 0.6816326530612244, 'xgboost_score': 0.5959183673469388}, 'rohit265__breast-cancer-uci-machine-learning.csv': {'tabpfn_score': 0.7235772357723578, 'xgboost_score': 0.8048780487804879}, 'gdabhishek__fertilizer-prediction.csv': {'tabpfn_score': 0.9523809523809523, 'xgboost_score': 0.8571428571428571}, 'devvret__congressional-voting-records.csv': {'tabpfn_score': 0.9649122807017544, 'xgboost_score': 0.9590643274853801}, 'kukuroo3__body-performance-data.csv': {'tabpfn_score': 0.6731230400295148, 'xgboost_score': 0.7410071942446043}, 'mnassrib__telecom-churn-datasets.csv': {'tabpfn_score': 0.9250374812593704, 'xgboost_score': 0.9580209895052474}, 'sheikhsohelmoon__harry-potters-second-wizard-war-dataset.csv': {'tabpfn_score': 0.6, 'xgboost_score': 0.1}, 'sakshigoyal7__credit-card-customers.csv': {'tabpfn_score': 1.0, 'xgboost_score': 1.0}, 'architsharma01__loan-approval-prediction-dataset.csv': {'tabpfn_score': 0.9417360285374554, 'xgboost_score': 0.9815695600475625}, 'anaghakp__adult-income-census.csv': {'tabpfn_score': 0.7634945397815912, 'xgboost_score': 0.8}, 'yasserh__loan-default-dataset.csv': {'tabpfn_score': 0.8584507749472768, 'xgboost_score': 0.8696314397616577}, 'ulrikthygepedersen__mushroom-attributes.csv': {'tabpfn_score': 0.5383906633906634, 'xgboost_score': 0.9837223587223587}, 'adityakadiwal__water-potability.csv': {'tabpfn_score': 0.6133434420015162, 'xgboost_score': 0.5534495830174374}, 'mirlei__hcc-survival-data-set.csv': {'tabpfn_score': 0.639344262295082, 'xgboost_score': 0.6065573770491803}, 'sadeghjalalian__wine-customer-segmentation.csv': {'tabpfn_score': 1.0, 'xgboost_score': 0.9285714285714286}, 'janiobachmann__bank-marketing-dataset.csv': {'tabpfn_score': 0.7955714605233728, 'xgboost_score': 0.8163721762469246}, 'uciml__pima-indians-diabetes-database.csv': {'tabpfn_score': 0.7491638795986622, 'xgboost_score': 0.7190635451505016}, 'hiimanshuagarwal__advertising-ef.csv': {'tabpfn_score': 0.5279187817258884, 'xgboost_score': 0.5279187817258884}, 'manikantasanjayv__crop-recommender-dataset-with-soil-nutrients.csv': {'tabpfn_score': 0.9721115537848606, 'xgboost_score': 0.9760956175298805}}
+        self.baseline_results = {'dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': {
+            'xgboost': 0.275}, 'sanskar457__fraud-transaction-detection.csv': {'xgboost': 1.0}, 'arashnic__taxi-pricing-with-mobility-analytics.csv': {
+            'xgboost': 0.7004069369437894}, 'teejmahal20__airline-passenger-satisfaction.csv': {
+            'xgboost': 0.9650831536803203}, 'gauravtopre__bank-customer-churn-dataset.csv': {
+            'xgboost': 0.8485749690210657}, 'shubhamgupta012__titanic-dataset.csv': {
+            'xgboost': 0.7800586510263929}, 'shivamb__vehicle-claim-fraud-detection.csv': {
+            'xgboost': 0.9456012913640033}, 'vicsuperman__prediction-of-music-genre.csv': {
+            'xgboost': 0.5082431475675129}, 'jinxzed__av-janatahack-crosssell-prediction.csv': {
+            'xgboost': 0.8760197474378948}, 'mohamedkhaledidris__ofhddd.csv': {
+            'xgboost': 0.9385884626140899}, 'mansoordaku__ckdisease.csv': {
+            'xgboost': 0.6556291390728477}, 'imsparsh__churn-risk-rate-hackerearth-ml.csv': {
+            'xgboost': 0.741038820505884}, 'youssefaboelwafa__hotel-booking-cancellation-prediction.csv': {
+            'xgboost': 0.831900405805076}, 'fedesoriano__hepatitis-c-dataset.csv': {
+            'xgboost': 0.9118773946360154}, 'danushkumarv__glass-identification-data-set.csv': {
+            'xgboost': 0.958904109589041}, 'shibumohapatra__book-my-show.csv': {
+            'xgboost': 0.9643811219946572}, 'debasisdotcom__parkinson-disease-detection.csv': {
+            'xgboost': 0.8823529411764706}, 'abisheksudarshan__customer-segmentation.csv': {
+            'xgboost': 0.5207756232686981}, 'robikscube__eye-state-classification-eeg-dataset.csv': {
+            'xgboost': 0.9237316421895861}, 'gauravduttakiit__bar-passage-qualification.csv': {
+            'xgboost': 0.9393179538615848}, 'reihanenamdari__breast-cancer.csv': {
+            'xgboost': 0.8937462052216151}, 'mysarahmadbhat__lung-cancer.csv': {
+            'xgboost': 0.9047619047619048}, 'imsparsh__jobathon-analytics-vidhya.csv': {
+            'xgboost': 0.7512555391432791}, 'harish24__music-genre-classification.csv': {
+            'xgboost': 0.6157635467980296}, 'mitesh58__bollywood-movie-dataset.csv': {
+            'xgboost': 0.525390625}, 'jillanisofttech__brain-stroke-dataset.csv': {
+            'xgboost': 0.9475262368815592}, 'olcaybolat1__dermatology-dataset-classification.csv': {
+            'xgboost': 0.9530201342281879}, 'snassimr__data-for-investing-type-prediction.csv': {
+            'xgboost': 0.7532808398950132}, 'creepyghost__uci-ionosphere.csv': {
+            'xgboost': 0.9126984126984127}, 'divyansh22__crystal-system-properties-for-liion-batteries.csv': {
+            'xgboost': 0.8928571428571429}, 'cherngs__heart-disease-cleveland-uci.csv': {
+            'xgboost': 0.7573529411764706}, 'jeevannagaraj__indian-liver-patient-dataset.csv': {
+            'xgboost': 0.6483050847457628}, 'rashikrahmanpritom__heart-attack-analysis-prediction-dataset.csv': {
+            'xgboost': 0.734375}, 'adhoppin__customer-cellular-data.csv': {
+            'xgboost': 0.9181286549707602}, 'captainozlem__framingham-chd-preprocessed-data.csv': {
+            'xgboost': 0.8265615524560339}, 'saadmansakib__smartphone-human-fall-dataset.csv': {
+            'xgboost': 1.0}, 'arunavakrchakraborty__australia-weather-data.csv': {
+            'xgboost': 0.859189141812536}, 'sammy123__lower-back-pain-symptoms-dataset.csv': {
+            'xgboost': 0.8389830508474576}, 'uciml__default-of-credit-card-clients-dataset.csv': {
+            'xgboost': 0.8144216999410328}, 'sajidhussain3__jobathon-may-2021-credit-card-lead-prediction.csv': {
+            'xgboost': 0.831234807049529}, 'mlg-ulb__creditcardfraud.csv': {
+            'xgboost': 0.9995175777138446}, 'divyansh22__flight-delay-prediction.csv': {
+            'xgboost': 0.9235934457760977}, 'juliasuzuki__waze-dataset-to-predict-user-churn.csv': {
+            'xgboost': 0.805648131906683}, 'caesarlupum__betsstrategy.csv': {
+            'xgboost': 1.0}, 'henrysue__online-shoppers-intention.csv': {
+            'xgboost': 0.8968318440292445}, 'colearninglounge__predicting-pulsar-starintermediate.csv': {
+            'xgboost': 0.0}, 'ulrikthygepedersen__tic-tac-toe.csv': {
+            'xgboost': 0.9863760217983651}, 'pavansubhasht__ibm-hr-analytics-attrition-dataset.csv': {
+            'xgboost': 0.8614035087719298}, 'antimoni__metabolic-syndrome.csv': {
+            'xgboost': 0.8798767967145791}, 'shrushtijoshi__asteroid-impacts.csv': {
+            'xgboost': 0.9985604606525912}, 'rajgupta2019__qsar-bioconcentration-classes-dataset.csv': {
+            'xgboost': 0.72}, 'iammustafatz__diabetes-prediction-dataset.csv': {
+            'xgboost': 0.9709321167701244}, 'yasserh__wine-quality-dataset.csv': {
+            'xgboost': 0.6268980477223427}, 'mdmahmudulhasansuzan__students-adaptability-level-in-online-education.csv': {
+            'xgboost': 0.901010101010101}, 'gauravduttakiit__smoker-status-prediction-using-biosignals.csv': {
+            'xgboost': 0.7641467304625199}, 'raniahelmy__no-show-investigate-dataset.csv': {
+            'xgboost': 0.7906117545728598}, 'ayushtankha__70k-job-applicants-data-human-resource.csv': {
+            'xgboost': 0.7697608569576638}, 'sahasourav17__child-sexual-abuse-awareness-knowledge-level.csv': {
+            'xgboost': 0.9184027777777778}, 'devzohaib__eligibility-prediction-for-loan.csv': {
+            'xgboost': 0.7551020408163265}, 'rohit265__breast-cancer-uci-machine-learning.csv': {
+            'xgboost': 0.7154471544715447}, 'gdabhishek__fertilizer-prediction.csv': {
+            'xgboost': 0.8571428571428571}, 'anmolkumar__janatahack-healthcare-analytics-part-2.csv': {
+            'xgboost': 0.03567858628162006}, 'kartikjaspal__server-logs-suspicious.csv': {
+            'xgboost': 0.6924375811805455}, 'devvret__congressional-voting-records.csv': {
+            'xgboost': 0.9590643274853801}, 'kukuroo3__body-performance-data.csv': {
+            'xgboost': 0.7410071942446043}, 'mnassrib__telecom-churn-datasets.csv': {
+            'xgboost': 0.9580209895052474}, 'sheikhsohelmoon__harry-potters-second-wizard-war-dataset.csv': {
+            'xgboost': 0.3}, 'sakshigoyal7__credit-card-customers.csv': {
+            'xgboost': 1.0}, 'architsharma01__loan-approval-prediction-dataset.csv': {
+            'xgboost': 0.9827586206896551}, 'anaghakp__adult-income-census.csv': {
+            'xgboost': 0.7989859594383776}, 'yasserh__loan-default-dataset.csv': {
+            'xgboost': 1.0}, 'ulrikthygepedersen__mushroom-attributes.csv': {
+            'xgboost': 1.0}, 'adityakadiwal__water-potability.csv': {
+            'xgboost': 0.6474601971190296}, 'lampubhutia__loandefault-ltfs-avml-finhack.csv': {
+            'xgboost': 0.9702291978076731}, 'mirlei__hcc-survival-data-set.csv': {
+            'xgboost': 0.5245901639344263}, 'sadeghjalalian__wine-customer-segmentation.csv': {
+            'xgboost': 0.9285714285714286}, 'janiobachmann__bank-marketing-dataset.csv': {
+            'xgboost': 0.8526056810556922}, 'uciml__pima-indians-diabetes-database.csv': {
+            'xgboost': 0.7190635451505016}, 'hiimanshuagarwal__advertising-ef.csv': {
+            'xgboost': 0.9441624365482234}, 'manikantasanjayv__crop-recommender-dataset-with-soil-nutrients.csv': {
+            'xgboost': 0.9760956175298805}}
+        # self.baseline_results = {'dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': {'xgboost_score': 0.225},
+        #  'sanskar457__fraud-transaction-detection.csv': {'xgboost_score': 1.0},
+        #  'arashnic__taxi-pricing-with-mobility-analytics.csv': {'xgboost_score': 0.6733285160112573},
+        #  'teejmahal20__airline-passenger-satisfaction.csv': {'xgboost_score': 0.7789882968894364},
+        #  'gauravtopre__bank-customer-churn-dataset.csv': {'xgboost_score': 0.7957868649318464},
+        #  'shubhamgupta012__titanic-dataset.csv': {'xgboost_score': 0.7624633431085044},
+        #  'shivamb__vehicle-claim-fraud-detection.csv': {'xgboost_score': 0.9383373688458434},
+        #  'vicsuperman__prediction-of-music-genre.csv': {'xgboost_score': 0.2527055729746131},
+        #  'jinxzed__av-janatahack-crosssell-prediction.csv': {'xgboost_score': 0.8755398662906502},
+        #  'mohamedkhaledidris__ofhddd.csv': {'xgboost_score': 0.9543131721455267},
+        #  'mansoordaku__ckdisease.csv': {'xgboost_score': 0.6357615894039735},
+        #  'imsparsh__churn-risk-rate-hackerearth-ml.csv': {'xgboost_score': 0.6287028269985121},
+        #  'youssefaboelwafa__hotel-booking-cancellation-prediction.csv': {'xgboost_score': 0.7160740078409794},
+        #  'fedesoriano__hepatitis-c-dataset.csv': {'xgboost_score': 0.842911877394636},
+        #  'danushkumarv__glass-identification-data-set.csv': {'xgboost_score': 0.4246575342465753},
+        #  'shibumohapatra__book-my-show.csv': {'xgboost_score': 0.967720391807658},
+        #  'debasisdotcom__parkinson-disease-detection.csv': {'xgboost_score': 0.6029411764705882},
+        #  'abisheksudarshan__customer-segmentation.csv': {'xgboost_score': 0.47306863650353953},
+        #  'robikscube__eye-state-classification-eeg-dataset.csv': {'xgboost_score': 0.5742656875834445},
+        #  'gauravduttakiit__bar-passage-qualification.csv': {'xgboost_score': 0.9267803410230692},
+        #  'reihanenamdari__breast-cancer.csv': {'xgboost_score': 0.8397085610200364},
+        #  'mysarahmadbhat__lung-cancer.csv': {'xgboost_score': 0.9126984126984127},
+        #  'imsparsh__jobathon-analytics-vidhya.csv': {'xgboost_score': 0.7494830132939438},
+        #  'harish24__music-genre-classification.csv': {'xgboost_score': 0.11330049261083744},
+        #  'mitesh58__bollywood-movie-dataset.csv': {'xgboost_score': 0.560546875},
+        #  'jillanisofttech__brain-stroke-dataset.csv': {'xgboost_score': 0.9540229885057471},
+        #  'olcaybolat1__dermatology-dataset-classification.csv': {'xgboost_score': 0.9194630872483222},
+        #  'snassimr__data-for-investing-type-prediction.csv': {'xgboost_score': 0.5328083989501312},
+        #  'creepyghost__uci-ionosphere.csv': {'xgboost_score': 0.6507936507936508},
+        #  'divyansh22__crystal-system-properties-for-liion-batteries.csv': {'xgboost_score': 0.7714285714285715},
+        #  'cherngs__heart-disease-cleveland-uci.csv': {'xgboost_score': 0.7132352941176471},
+        #  'jeevannagaraj__indian-liver-patient-dataset.csv': {'xgboost_score': 0.576271186440678},
+        #  'rashikrahmanpritom__heart-attack-analysis-prediction-dataset.csv': {'xgboost_score': 0.765625},
+        #  'adhoppin__customer-cellular-data.csv': {'xgboost_score': 0.6871345029239766},
+        #  'captainozlem__framingham-chd-preprocessed-data.csv': {'xgboost_score': 0.810794420861128},
+        #  'saadmansakib__smartphone-human-fall-dataset.csv': {'xgboost_score': 0.4297752808988764},
+        #  'arunavakrchakraborty__australia-weather-data.csv': {'xgboost_score': 0.7871935491949015},
+        #  'sammy123__lower-back-pain-symptoms-dataset.csv': {'xgboost_score': 0.7372881355932204},
+        #  'uciml__default-of-credit-card-clients-dataset.csv': {'xgboost_score': 0.7412180945160475},
+        #  'sajidhussain3__jobathon-may-2021-credit-card-lead-prediction.csv': {'xgboost_score': 0.6808815709510787},
+        #  'mlg-ulb__creditcardfraud.csv': {'xgboost_score': 0.9971493228545365},
+        #  'divyansh22__flight-delay-prediction.csv': {'xgboost_score': 0.9237973797701772},
+        #  'juliasuzuki__waze-dataset-to-predict-user-churn.csv': {'xgboost_score': 0.768812489037011},
+        #  'caesarlupum__betsstrategy.csv': {'xgboost_score': 0.7340974212034383},
+        #  'henrysue__online-shoppers-intention.csv': {'xgboost_score': 0.8204711616571893},
+        #  'colearninglounge__predicting-pulsar-starintermediate.csv': {'xgboost_score': 0.0},        # FIXME: it was nan
+        #  'ulrikthygepedersen__tic-tac-toe.csv': {'xgboost_score': 0.9918256130790191},
+        #  'pavansubhasht__ibm-hr-analytics-attrition-dataset.csv': {'xgboost_score': 0.8421052631578947},
+        #  'antimoni__metabolic-syndrome.csv': {'xgboost_score': 0.6211498973305954},
+        #  'shrushtijoshi__asteroid-impacts.csv': {'xgboost_score': 0.8550863723608445},
+        #  'rajgupta2019__qsar-bioconcentration-classes-dataset.csv': {'xgboost_score': 0.48615384615384616},
+        #  'iammustafatz__diabetes-prediction-dataset.csv': {'xgboost_score': 0.9122478996833944},
+        #  'yasserh__wine-quality-dataset.csv': {'xgboost_score': 0.368763557483731},
+        #  'mdmahmudulhasansuzan__students-adaptability-level-in-online-education.csv': {
+        #      'xgboost_score': 0.8727272727272727},
+        #  'gauravduttakiit__smoker-status-prediction-using-biosignals.csv': {'xgboost_score': 0.6005103668261563},
+        #  'raniahelmy__no-show-investigate-dataset.csv': {'xgboost_score': 0.7974795439606519},
+        #  'ayushtankha__70k-job-applicants-data-human-resource.csv': {'xgboost_score': 0.57865111042882},
+        #  'sahasourav17__child-sexual-abuse-awareness-knowledge-level.csv': {'xgboost_score': 0.9184027777777778},
+        #  'devzohaib__eligibility-prediction-for-loan.csv': {'xgboost_score': 0.7551020408163265},
+        #  'rohit265__breast-cancer-uci-machine-learning.csv': {'xgboost_score': 0.7154471544715447},
+        #  'gdabhishek__fertilizer-prediction.csv': {'xgboost_score': 0.14285714285714285},
+        #  'anmolkumar__janatahack-healthcare-analytics-part-2.csv': {'xgboost_score': 0.023216617903500002},
+        #  'kartikjaspal__server-logs-suspicious.csv': {'xgboost_score': 0.9905614085726656},
+        #  'devvret__congressional-voting-records.csv': {'xgboost_score': 0.9590643274853801},
+        #  'kukuroo3__body-performance-data.csv': {'xgboost_score': 0.25345877144438295},
+        #  'mnassrib__telecom-churn-datasets.csv': {'xgboost_score': 0.8605697151424287},
+        #  'sheikhsohelmoon__harry-potters-second-wizard-war-dataset.csv': {'xgboost_score': 0.2},
+        #  'sakshigoyal7__credit-card-customers.csv': {'xgboost_score': 0.8084310301820903},
+        #  'architsharma01__loan-approval-prediction-dataset.csv': {'xgboost_score': 0.56064209274673},
+        #  'anaghakp__adult-income-census.csv': {'xgboost_score': 0.8268330733229329},
+        #  'yasserh__loan-default-dataset.csv': {'xgboost_score': 0.8680079001104677},
+        #  'ulrikthygepedersen__mushroom-attributes.csv': {'xgboost_score': 1.0},
+        #  'adityakadiwal__water-potability.csv': {'xgboost_score': 0.55420773313116},
+        #  'lampubhutia__loandefault-ltfs-avml-finhack.csv': {'xgboost_score': 0.9907822620827105},
+        #  'mirlei__hcc-survival-data-set.csv': {'xgboost_score': 0.6229508196721312},
+        #  'sadeghjalalian__wine-customer-segmentation.csv': {'xgboost_score': 0.2857142857142857},
+        #  'janiobachmann__bank-marketing-dataset.csv': {'xgboost_score': 0.7304853500335495},
+        #  'uciml__pima-indians-diabetes-database.csv': {'xgboost_score': 0.5919732441471572},
+        #  'hiimanshuagarwal__advertising-ef.csv': {'xgboost_score': 0.5152284263959391},
+        #  'manikantasanjayv__crop-recommender-dataset-with-soil-nutrients.csv': {'xgboost_score': 0.2749003984063745}}
+        # self.baseline_results = {'dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': {'tabpfn_score': 0.45, 'xgboost_score': 0.35}, 'arashnic__taxi-pricing-with-mobility-analytics.csv': {'tabpfn_score': 0.4829048452118354, 'xgboost_score': 0.4965771658933597}, 'gauravtopre__bank-customer-churn-dataset.csv': {'tabpfn_score': 0.8384138785625774, 'xgboost_score': 0.8453531598513011}, 'shubhamgupta012__titanic-dataset.csv': {'tabpfn_score': 0.8123167155425219, 'xgboost_score': 0.7800586510263929}, 'shivamb__vehicle-claim-fraud-detection.csv': {'tabpfn_score': 0.9391444713478612, 'xgboost_score': 0.9389830508474576}, 'vicsuperman__prediction-of-music-genre.csv': {'tabpfn_score': 0.09790634166076666, 'xgboost_score': 0.13689693536967734}, 'mansoordaku__ckdisease.csv': {'tabpfn_score': 0.9867549668874173, 'xgboost_score': 0.6556291390728477}, 'imsparsh__churn-risk-rate-hackerearth-ml.csv': {'tabpfn_score': 0.3052887866901123, 'xgboost_score': 0.3150953604761261}, 'youssefaboelwafa__hotel-booking-cancellation-prediction.csv': {'tabpfn_score': 0.7977852672123255, 'xgboost_score': 0.8678038379530917}, 'fedesoriano__hepatitis-c-dataset.csv': {'tabpfn_score': 0.9042145593869731, 'xgboost_score': 0.9042145593869731}, 'danushkumarv__glass-identification-data-set.csv': {'tabpfn_score': 0.9178082191780822, 'xgboost_score': 0.958904109589041}, 'shibumohapatra__book-my-show.csv': {'tabpfn_score': 0.8702137132680321, 'xgboost_score': 0.967720391807658}, 'debasisdotcom__parkinson-disease-detection.csv': {'tabpfn_score': 0.9117647058823529, 'xgboost_score': 0.8970588235294118}, 'abisheksudarshan__customer-segmentation.csv': {'tabpfn_score': 0.47399199753770394, 'xgboost_score': 0.4838411819021237}, 'robikscube__eye-state-classification-eeg-dataset.csv': {'tabpfn_score': 0.5694259012016022, 'xgboost_score': 0.9237316421895861}, 'gauravduttakiit__bar-passage-qualification.csv': {'tabpfn_score': 0.9473420260782347, 'xgboost_score': 0.9393179538615848}, 'reihanenamdari__breast-cancer.csv': {'tabpfn_score': 0.8955676988463873, 'xgboost_score': 0.891317547055252}, 'mysarahmadbhat__lung-cancer.csv': {'tabpfn_score': 0.9126984126984127, 'xgboost_score': 0.9047619047619048}, 'imsparsh__jobathon-analytics-vidhya.csv': {'tabpfn_score': 0.7602658788774003, 'xgboost_score': 0.7492368291482029}, 'harish24__music-genre-classification.csv': {'tabpfn_score': 0.645320197044335, 'xgboost_score': 0.6231527093596059}, 'mitesh58__bollywood-movie-dataset.csv': {'tabpfn_score': 0.58203125, 'xgboost_score': 0.58203125}, 'jillanisofttech__brain-stroke-dataset.csv': {'tabpfn_score': 0.9500249875062469, 'xgboost_score': 0.9405297351324338}, 'olcaybolat1__dermatology-dataset-classification.csv': {'tabpfn_score': 0.9664429530201343, 'xgboost_score': 0.9463087248322147}, 'snassimr__data-for-investing-type-prediction.csv': {'tabpfn_score': 0.7123359580052493, 'xgboost_score': 0.7706036745406825}, 'creepyghost__uci-ionosphere.csv': {'tabpfn_score': 0.9206349206349206, 'xgboost_score': 0.9126984126984127}, 'divyansh22__crystal-system-properties-for-liion-batteries.csv': {'tabpfn_score': 0.6214285714285714, 'xgboost_score': 0.6285714285714286}, 'cherngs__heart-disease-cleveland-uci.csv': {'tabpfn_score': 0.8308823529411765, 'xgboost_score': 0.7573529411764706}, 'jeevannagaraj__indian-liver-patient-dataset.csv': {'tabpfn_score': 0.6864406779661016, 'xgboost_score': 0.635593220338983}, 'rashikrahmanpritom__heart-attack-analysis-prediction-dataset.csv': {'tabpfn_score': 0.8046875, 'xgboost_score': 0.734375}, 'adhoppin__customer-cellular-data.csv': {'tabpfn_score': 0.898635477582846, 'xgboost_score': 0.9161793372319688}, 'captainozlem__framingham-chd-preprocessed-data.csv': {'tabpfn_score': 0.8465736810187993, 'xgboost_score': 0.8265615524560339}, 'saadmansakib__smartphone-human-fall-dataset.csv': {'tabpfn_score': 0.9691011235955056, 'xgboost_score': 0.9719101123595506}, 'arunavakrchakraborty__australia-weather-data.csv': {'tabpfn_score': 0.7742468634963564, 'xgboost_score': 0.7738461923722235}, 'sammy123__lower-back-pain-symptoms-dataset.csv': {'tabpfn_score': 0.8728813559322034, 'xgboost_score': 0.8050847457627118}, 'uciml__default-of-credit-card-clients-dataset.csv': {'tabpfn_score': 0.8144216999410328, 'xgboost_score': 0.8144216999410328}, 'juliasuzuki__waze-dataset-to-predict-user-churn.csv': {'tabpfn_score': 0.8266970706893527, 'xgboost_score': 0.027188212594281704}, 'caesarlupum__betsstrategy.csv': {'tabpfn_score': 1.0, 'xgboost_score': 1.0}, 'henrysue__online-shoppers-intention.csv': {'tabpfn_score': 0.890536149471974, 'xgboost_score': 0.8883021933387489}, 'ulrikthygepedersen__tic-tac-toe.csv': {'tabpfn_score': 1.0, 'xgboost_score': 0.989100817438692}, 'pavansubhasht__ibm-hr-analytics-attrition-dataset.csv': {'tabpfn_score': 0.8894736842105263, 'xgboost_score': 0.8771929824561403}, 'antimoni__metabolic-syndrome.csv': {'tabpfn_score': 0.8203285420944558, 'xgboost_score': 0.8213552361396304}, 'shrushtijoshi__asteroid-impacts.csv': {'tabpfn_score': 0.6825015994881638, 'xgboost_score': 0.9584133077415227}, 'rajgupta2019__qsar-bioconcentration-classes-dataset.csv': {'tabpfn_score': 0.7353846153846154, 'xgboost_score': -1.0}, 'iammustafatz__diabetes-prediction-dataset.csv': {'tabpfn_score': 0.9598883155086879, 'xgboost_score': 0.9714057786752425}, 'yasserh__wine-quality-dataset.csv': {'tabpfn_score': 0.6334056399132321, 'xgboost_score': 0.6268980477223427}, 'mdmahmudulhasansuzan__students-adaptability-level-in-online-education.csv': {'tabpfn_score': 0.8707070707070707, 'xgboost_score': 0.8565656565656565}, 'gauravduttakiit__smoker-status-prediction-using-biosignals.csv': {'tabpfn_score': 0.7278468899521531, 'xgboost_score': 0.7641467304625199}, 'raniahelmy__no-show-investigate-dataset.csv': {'tabpfn_score': 0.7963009134386545, 'xgboost_score': 0.7950542850019267}, 'ayushtankha__70k-job-applicants-data-human-resource.csv': {'tabpfn_score': 0.7783236106846791, 'xgboost_score': 0.780541056868966}, 'sahasourav17__child-sexual-abuse-awareness-knowledge-level.csv': {'tabpfn_score': 0.9157986111111112, 'xgboost_score': 0.9184027777777778}, 'devzohaib__eligibility-prediction-for-loan.csv': {'tabpfn_score': 0.6816326530612244, 'xgboost_score': 0.5959183673469388}, 'rohit265__breast-cancer-uci-machine-learning.csv': {'tabpfn_score': 0.7235772357723578, 'xgboost_score': 0.8048780487804879}, 'gdabhishek__fertilizer-prediction.csv': {'tabpfn_score': 0.9523809523809523, 'xgboost_score': 0.8571428571428571}, 'devvret__congressional-voting-records.csv': {'tabpfn_score': 0.9649122807017544, 'xgboost_score': 0.9590643274853801}, 'kukuroo3__body-performance-data.csv': {'tabpfn_score': 0.6731230400295148, 'xgboost_score': 0.7410071942446043}, 'mnassrib__telecom-churn-datasets.csv': {'tabpfn_score': 0.9250374812593704, 'xgboost_score': 0.9580209895052474}, 'sheikhsohelmoon__harry-potters-second-wizard-war-dataset.csv': {'tabpfn_score': 0.6, 'xgboost_score': 0.1}, 'sakshigoyal7__credit-card-customers.csv': {'tabpfn_score': 1.0, 'xgboost_score': 1.0}, 'architsharma01__loan-approval-prediction-dataset.csv': {'tabpfn_score': 0.9417360285374554, 'xgboost_score': 0.9815695600475625}, 'anaghakp__adult-income-census.csv': {'tabpfn_score': 0.7634945397815912, 'xgboost_score': 0.8}, 'yasserh__loan-default-dataset.csv': {'tabpfn_score': 0.8584507749472768, 'xgboost_score': 0.8696314397616577}, 'ulrikthygepedersen__mushroom-attributes.csv': {'tabpfn_score': 0.5383906633906634, 'xgboost_score': 0.9837223587223587}, 'adityakadiwal__water-potability.csv': {'tabpfn_score': 0.6133434420015162, 'xgboost_score': 0.5534495830174374}, 'mirlei__hcc-survival-data-set.csv': {'tabpfn_score': 0.639344262295082, 'xgboost_score': 0.6065573770491803}, 'sadeghjalalian__wine-customer-segmentation.csv': {'tabpfn_score': 1.0, 'xgboost_score': 0.9285714285714286}, 'janiobachmann__bank-marketing-dataset.csv': {'tabpfn_score': 0.7955714605233728, 'xgboost_score': 0.8163721762469246}, 'uciml__pima-indians-diabetes-database.csv': {'tabpfn_score': 0.7491638795986622, 'xgboost_score': 0.7190635451505016}, 'hiimanshuagarwal__advertising-ef.csv': {'tabpfn_score': 0.5279187817258884, 'xgboost_score': 0.5279187817258884}, 'manikantasanjayv__crop-recommender-dataset-with-soil-nutrients.csv': {'tabpfn_score': 0.9721115537848606, 'xgboost_score': 0.9760956175298805}}
         # 'sanskar457__fraud-transaction-detection.csv' = {dict: 2}
         # {'tabpfn_score': 1.0, 'xgboost_score': 1.0}
         # 'teejmahal20__airline-passenger-satisfaction.csv' = {dict: 2}
