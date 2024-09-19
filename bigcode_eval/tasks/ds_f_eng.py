@@ -20,11 +20,11 @@ class DsFEng(Task):
     answers, generation settings and evaluation methods.
     """
 
-    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_3.jsonl"
+    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_4.jsonl"
     DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_8"
-    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta2.csv"
+    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta3.csv"
     LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log7.jsonl"
-    BASELINE_SCORES = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores4.pickle"
+    BASELINE_SCORES = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores3.pickle"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
@@ -105,7 +105,7 @@ class DsFEng(Task):
 
         evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
 
-        results = evaluator.evaluate(generations, references, do_baseline=True)
+        results = evaluator.evaluate(generations, references, do_baseline=False)
         print(results)
 
 

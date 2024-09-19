@@ -314,9 +314,8 @@ class Evaluator:
             #     continue
             # if dataframe_name in ['shubhamgupta012__titanic-dataset.csv']:
             #     break
-            # if dataframe_name not in ["maajdl__yeh-concret-data.csv"]:  #["iabhishekofficial__mobile-price-classification.csv"]:
-            #
-            #     continue
+            if dataframe_name not in ["maajdl__yeh-concret-data.csv"]:  #["iabhishekofficial__mobile-price-classification.csv"]:
+                 continue
             data_split = self.data_processor.load_dataframe(dataframe_name)
             print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
             # if data_split.train_x.shape[0] > 5000 or data_split.train_x.shape[1] > 10000:
@@ -331,7 +330,12 @@ class Evaluator:
                 except:
                     pass
 
-                data_split = do_concrete_strength_regression_kernel_studies(data_split, self.data_processor, prediction, model)
+                from .concrete_strenght_regression import final_kernel
+
+                train_x, train_y, test_x = final_kernel(data_split.train_x, data_split.train_target, data_split.test_x)
+                data_split = DataSplit(test_x, data_split.test_target, train_x, data_split.train_target)
+
+                # data_split = do_concrete_strength_regression_kernel_studies(data_split, self.data_processor, prediction, model)
                 # data_split = do_kernel_studies_weather(data_split, self.data_processor, prediction, model)
 
                 # data_split = self.data_processor.transform_dataframe(prediction, data_split)
@@ -357,7 +361,7 @@ class Evaluator:
             # Saving the defaultdict to a file
             import pickle
             with open(
-                    "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores2.pickle",
+                    "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores3.pickle",
                     'wb') as handle:
                 pickle.dump(accuracies, handle, protocol=pickle.HIGHEST_PROTOCOL)
         return accuracies
@@ -382,10 +386,12 @@ def do_concrete_strength_regression_kernel_studies(data_split_pre, data_processo
         for prod_j in prods_that_help:
             for i in range(80):
                 data_split = deepcopy(bckp_data_split)
+                prod_j = (4, 30, 33, 44)
+                do_these = (9, 43)#, 63)
                 train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
                 try:
                     train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
-                                                              data_split.test_x, do_these=(i,))
+                                                              data_split.test_x, do_these=do_these)
                     train_x, train_y, test_x = transform_data_products(data_split.train_x, data_split.train_target,
                                                               data_split.test_x, do_these=prod_j)
                     # train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=(i,))
