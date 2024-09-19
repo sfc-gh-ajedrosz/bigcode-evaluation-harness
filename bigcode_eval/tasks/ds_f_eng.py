@@ -8,7 +8,7 @@ import pandas as pd
 import pickle
 
 from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_average_accuracy
-from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_2_refactored import DataProcessor, \
+from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_3_refactored import DataProcessor, \
     XGBoostModel, TabPFNModel, Evaluator, ScoreNormalizer
 from bigcode_eval.base import Task
 
@@ -21,8 +21,8 @@ class DsFEng(Task):
     """
 
     DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_4.jsonl"
-    DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_8"
-    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta3.csv"
+    DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_9"
+    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta9.csv"
     LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log7.jsonl"
     BASELINE_SCORES = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores3.pickle"
     DATAFRAMES_URL = ""
