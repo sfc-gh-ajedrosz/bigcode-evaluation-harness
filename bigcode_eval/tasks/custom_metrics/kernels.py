@@ -1,184 +1,4 @@
 kernels = {
-    'shubhamgupta012__titanic-dataset.csv' : """
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-
-def transform(train_x: pd.DataFrame, train_y: pd.Series, test_x: pd.DataFrame) -> (pd.DataFrame, pd.Series, pd.DataFrame):
-    # Combine train and test data temporarily for consistent feature encoding
-    combined = pd.concat([train_x, test_x], axis=0)
-
-    # Encoding categorical features
-    encoders = {
-        'Sex': LabelEncoder(),
-        'Embarked': LabelEncoder()
-    }
-
-    for column, encoder in encoders.items():
-        # Encode the column
-        combined[column] = encoder.fit_transform(combined[column].astype(str))
-        # Convert to int to ensure the dtype is acceptable by XGBoost
-        combined[column] = combined[column].astype(int)
-
-    # Split the combined back into train and test
-    train_x = combined.iloc[:len(train_x)]
-    test_x = combined.iloc[len(train_x):]
-
-    # Handle missing values
-    # Fill missing values with the median of the training set
-    for column in ['Age', 'Fare']:
-        median = train_x[column].median()
-        train_x[column].fillna(median, inplace=True)
-        test_x[column].fillna(median, inplace=True)
-
-    # Drop non-informative features
-    if 'PassengerId' in train_x.columns:
-        train_x.drop('PassengerId', axis=1, inplace=True)
-        test_x.drop('PassengerId', axis=1, inplace=True)
-
-    return train_x, train_y, test_x
-    """,
-    'OLD_dhanasekarjaisankar__correlation-between-posture-personality-trait.csv' : """    
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-
-def encode_categorical(df, columns):
-    for column in columns:
-        encoder = LabelEncoder()
-        df[column] = encoder.fit_transform(df[column].fillna('Missing'))
-    return df
-
-def fill_nans(df, strategy='mean'):
-    for column in df.select_dtypes(include=[np.number]).columns:
-        if strategy == 'mean':
-            df[column] = df[column].fillna(df[column].mean())
-        elif strategy == 'median':
-            df[column] = df[column].fillna(df[column].median())
-        elif strategy == 'zero':
-            df[column] = df[column].fillna(0)
-    return df
-
-def standardize_data(df, numerical_columns):
-    scaler = StandardScaler()
-    df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
-    return df
-
-def transform(train_x: pd.DataFrame, train_y: pd.Series, test_x: pd.DataFrame) -> (pd.DataFrame, pd.Series, pd.DataFrame):
-    # categorical_cols = ['SEX', 'ACTIVITY LEVEL', 'MBTI']  # Define categorical columns
-    categorical_cols = ['SEX', 'ACTIVITY LEVEL']  # Define categorical columns
-    numerical_cols = ['AGE', 'HEIGHT', 'WEIGHT', 'E', 'I', 'S', 'N', 'T', 'F', 'J', 'P']  # Define numerical columns
-
-    # Encode categorical data and fill missing values
-    train_x = encode_categorical(train_x, categorical_cols)
-    test_x = encode_categorical(test_x, categorical_cols)
-
-    # Fill NaNs for numerical columns
-    train_x = fill_nans(train_x)
-    test_x = fill_nans(test_x)
-
-    # Standardize numerical data
-    train_x = standardize_data(train_x, numerical_cols)
-    test_x = standardize_data(test_x, numerical_cols)
-
-    return train_x, train_y, test_x
-
-# Example usage:
-# Assuming train_x, train_y, and test_x are already defined pandas DataFrame and Series
-# train_x_transformed, train_y_transformed, test_x_transformed = transform(train_x, train_y, test_x)
-""",
-    'BOTH__dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': """
-    
-# personality traits
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-import numpy as np
-def transform(train_x: pd.DataFrame, train_y: pd.Series, test_x: pd.DataFrame) -> (pd.DataFrame, pd.Series, pd.DataFrame):
-    def encode_categorical(df, columns):
-        for column in columns:
-            encoder = LabelEncoder()
-            df[column] = encoder.fit_transform(df[column].fillna('Missing'))
-        return df
-
-    def fill_nans(df, strategy='mean'):
-        for column in df.select_dtypes(include=[np.number]).columns:
-            if strategy == 'mean':
-                df[column] = df[column].fillna(df[column].mean())
-            elif strategy == 'median':
-                df[column] = df[column].fillna(df[column].median())
-            elif strategy == 'zero':
-                df[column] = df[column].fillna(0)
-        return df
-
-    def standardize_data(df, numerical_columns):
-        scaler = StandardScaler()
-        df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
-        return df
-    
-    def pain_std(df):
-        df['PAIN_STD'] = df[['PAIN 1', 'PAIN 2', 'PAIN 3', 'PAIN 4']].std(axis=1)
-        return df
-
-    def encode_sex(df):
-        df['SEX'] = df['SEX'].map({'Male': 1, 'Female': 0})
-        return df
-
-    def weight_height_ratio(df):
-        df['WeightHeightRatio'] = df['WEIGHT'] / df['HEIGHT']
-        return df
-
-    def pain_mbti_interaction(df):
-        df['PAINxE'] = df['PAIN_MEAN'] * df['E']
-        df['PAINxI'] = df['PAIN_MEAN'] * df['I']
-        return df
-
-    def aggregate_pain(df):
-        df['PAIN_MEAN'] = df[['PAIN 1', 'PAIN 2', 'PAIN 3', 'PAIN 4']].mean(axis=1)
-        df['PAIN_MAX'] = df[['PAIN 1', 'PAIN 2', 'PAIN 3', 'PAIN 4']].max(axis=1)
-        return df
-
-    def get_top_correlated_features(test_x, train_x, n=18):
-        selected_columns = []
-        columns = []
-        correlation = train_x.corr()
-        # print(correlation)
-        top_corr = correlation.abs().unstack().sort_values(ascending=False).drop_duplicates()[:n]
-        for i, j in top_corr.items():
-            columns.append(i[0])
-        for i in columns:
-            if i not in selected_columns:
-                selected_columns.append(i)
-        train_x = train_x[selected_columns]
-        test_x = test_x[selected_columns]
-        return test_x, train_x
-    
-    #
-    categorical_cols = ['SEX', 'ACTIVITY LEVEL']  # Define categorical columns
-    numerical_cols = ['AGE', 'HEIGHT', 'WEIGHT', 'E', 'I', 'S', 'N', 'T', 'F', 'J', 'P']  # Define numerical columns
-
-    # Encode categorical data and fill missing values
-    train_x = encode_categorical(train_x, categorical_cols)
-    test_x = encode_categorical(test_x, categorical_cols)
-
-    # Fill NaNs for numerical columns
-    train_x = fill_nans(train_x)
-    test_x = fill_nans(test_x)
-
-    # Standardize numerical data
-    train_x = standardize_data(train_x, numerical_cols)
-    test_x = standardize_data(test_x, numerical_cols)
-    #
-    train_x = encode_sex(train_x)
-    test_x = encode_sex(test_x)
-    train_x = aggregate_pain(train_x)
-    test_x = aggregate_pain(test_x)
-    train_x = pain_mbti_interaction(train_x)
-    test_x = pain_mbti_interaction(test_x)
-    train_x = weight_height_ratio(train_x)
-    test_x = weight_height_ratio(test_x)
-    train_x = pain_std(train_x)
-    test_x = pain_std(test_x)
-    test_x, train_x = get_top_correlated_features(test_x, train_x, n=18)
-    return train_x, train_y, test_x
-""",
     'dhanasekarjaisankar__correlation-between-posture-personality-trait.csv':
 """
 # personality traits
@@ -271,89 +91,14 @@ pd.DataFrame, pd.Series, pd.DataFrame):
     test_x, train_x = get_top_correlated_features(test_x, train_x, n=18)
     return train_x, train_y, test_x
 """,
-'GPT_dhanasekarjaisankar__correlation-between-posture-personality-trait.csv': """       # refactored by chat gpt
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-import numpy as np
 
-# Define global helper functions
-def encode_categorical(df, columns, one_hot=False):
-    for column in columns:
-        if one_hot:
-            dummies = pd.get_dummies(df[column], prefix=column)
-            df = pd.concat([df, dummies], axis=1)
-            df.drop(column, axis=1, inplace=True)
-        else:
-            encoder = LabelEncoder()
-            df[column] = encoder.fit_transform(df[column].fillna('Missing'))
-    return df
-
-def fill_nans(df, strategy='mean'):
-    for column in df.select_dtypes(include=[np.number]).columns:
-        if strategy == 'mean':
-            df[column] = df[column].fillna(df[column].mean())
-        elif strategy == 'median':
-            df[column] = df[column].fillna(df[column].median())
-        elif strategy == 'zero':
-            df[column] = df[column].fillna(0)
-    return df
-
-def standardize_data(df, numerical_columns):
-    scaler = StandardScaler()
-    df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
-    return df
-
-def get_top_correlated_features(test_x, train_x, n=18):
-    selected_columns = []
-    columns = []
-    correlation = train_x.corr()
-    # print(correlation)
-    top_corr = correlation.abs().unstack().sort_values(ascending=False).drop_duplicates()[:n]
-    for i, j in top_corr.items():
-        columns.append(i[0])
-    for i in columns:
-        if i not in selected_columns:
-            selected_columns.append(i)
-    train_x = train_x[selected_columns]
-    test_x = test_x[selected_columns]
-    return test_x, train_x
-
-
-def transform(train_x, train_y, test_x):
-
-    # Common columns and setups
-    categorical_cols = ['MBTI', 'ACTIVITY LEVEL', 'SEX']
-    pain_columns = ['PAIN 1', 'PAIN 2', 'PAIN 3', 'PAIN 4']
-
-    # Encoding and cleaning
-    for df in [train_x, test_x]:
-        df = encode_categorical(df, categorical_cols, one_hot=False)
-        df = fill_nans(df)
-        # df['SEX'] = df['SEX'].map({'Male': 1, 'Female': 0})  # Encode sex directly
-        df['WeightHeightRatio'] = df['WEIGHT'] / df['HEIGHT']
-        df['PAIN_MEAN'] = df[pain_columns].mean(axis=1)
-        df['PAIN_MAX'] = df[pain_columns].max(axis=1)
-        df['PAIN_STD'] = df[pain_columns].std(axis=1)
-        df['PAINxE'] = df['PAIN_MEAN'] * df['E']
-        df['PAINxI'] = df['PAIN_MEAN'] * df['I']
-
-    # Feature selection based on correlation in train data
-    correlation = train_x.corr()
-    test_x, train_x = get_top_correlated_features(test_x, train_x, n=18)
-    # top_features = correlation.nlargest(18, 'target_column')['target_column'].index  # Adjust target column name accordingly
-    # train_x = train_x[top_features]
-    # test_x = test_x[top_features]
-
-    return train_x, train_y, test_x
-
-# Usage
-# Assuming train_x, train_y, test_x are already defined
-# train_x_transformed, train_y_transformed, test_x_transformed = transform(train_x, train_y, test_x)
+'arunavakrchakraborty__australia-weather-data.csv':
 """
-,
-'arunavakrchakraborty__australia-weather-data.csv': """
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+
+from sklearn.compose import ColumnTransformer
 
 def encode_categorical(df, columns):
     for column in columns:
@@ -361,109 +106,217 @@ def encode_categorical(df, columns):
         df[column] = encoder.fit_transform(df[column].fillna('Missing'))
     return df
 
-def fill_nans(df, strategy='mean'):
-    for column in df.select_dtypes(include=[np.number]).columns:
-        if strategy == 'mean':
-            df[column] = df[column].fillna(df[column].mean())
-        elif strategy == 'median':
-            df[column] = df[column].fillna(df[column].median())
-        elif strategy == 'zero':
-            df[column] = df[column].fillna(0)
+def apply_city_specific_normalization(train_x, test_x, numeric_cols):
+    # Normalize numeric columns for each city in train_x and apply the same transformation to test_x.
+    scalers = {}
+
+    # Iterate over each city in the training data
+    for city, group in train_x.groupby('Location'):
+        if numeric_cols:  # Check if there are numeric columns to scale
+            scaler = StandardScaler()
+            # Fit the scaler on the training group
+            train_x.loc[train_x['Location'] == city, numeric_cols] = scaler.fit_transform(group[numeric_cols])
+            # Store the scaler to apply it to the test data
+            scalers[city] = scaler
+
+    # Apply the same scaler to corresponding cities in the test data
+    for city, scaler in scalers.items():
+        if city in test_x['Location'].values:
+            test_x.loc[test_x['Location'] == city, numeric_cols] = scaler.transform(
+                test_x[test_x['Location'] == city][numeric_cols])
+
+    return train_x, test_x
+
+def map_geo_to_climate_resilience(df):
+    # Hypothetical scores based on broad characteristics
+    climate_resilience = {
+        'Albury': 0.6, 'BadgerysCreek': 0.5, 'Cobar': 0.4, 'CoffsHarbour': 0.8,
+        'Moree': 0.5, 'Newcastle': 0.7, 'NorahHead': 0.75, 'NorfolkIsland': 0.85,
+        'Penrith': 0.5, 'Richmond': 0.5, 'Sydney': 0.8, 'SydneyAirport': 0.8,
+        'WaggaWagga': 0.55, 'Williamtown': 0.7, 'Wollongong': 0.8,
+        'Canberra': 0.65, 'Tuggeranong': 0.65, 'MountGinini': 0.6,
+        'Ballarat': 0.7, 'Bendigo': 0.65, 'Sale': 0.7, 'MelbourneAirport': 0.75,
+        'Melbourne': 0.75, 'Mildura': 0.4, 'Nhil': 0.45, 'Portland': 0.8,
+        'Watsonia': 0.75, 'Dartmoor': 0.75, 'Brisbane': 0.85, 'Cairns': 0.85,
+        'GoldCoast': 0.85, 'Townsville': 0.8, 'Adelaide': 0.75,
+        'MountGambier': 0.75, 'Nuriootpa': 0.6, 'Woomera': 0.4,
+        'Albany': 0.75, 'Witchcliffe': 0.75, 'PearceRAAF': 0.7,
+        'PerthAirport': 0.75, 'Perth': 0.75, 'SalmonGums': 0.5,
+        'Walpole': 0.75, 'Hobart': 0.8, 'Launceston': 0.7,
+        'AliceSprings': 0.35, 'Darwin': 0.9, 'Katherine': 0.7, 'Uluru': 0.3
+    }
+    df['ClimateResillience'] = df['Location'].map(lambda x: climate_resilience[x])
     return df
 
-def standardize_data(df, numerical_columns):
-    scaler = StandardScaler()
-    df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
+def map_geo_1(geo_features, df):
+    # Map each geo feature to the DataFrame using the dictionary values
+    df['Coast'] = df['Location'].map(lambda x: geo_features[x]['Coast'])
+    return df
+
+def map_geo_2(geo_features, df):
+    # Map each geo feature to the DataFrame using the dictionary values
+    df['Ocean'] = df['Location'].map(lambda x: geo_features[x]['Ocean'])
+    return df
+
+def map_geo_3(geo_features, df):
+    # Map each geo feature to the DataFrame using the dictionary values
+    df['Desert'] = df['Location'].map(lambda x: geo_features[x]['Desert'])
+    return df
+
+def map_geo_4(geo_features, df):
+    # Map each geo feature to the DataFrame using the dictionary values
+    df['Mountains'] = df['Location'].map(lambda x: geo_features[x]['Mountains'])
+    return df
+
+def weather_conditions_ratios(df):
+    df['Temperature_Range_Ratio'] = (df['MaxTemp'] - df['MinTemp'] +100) / (df['MaxTemp'] +100)
+    df['Pressure_Stability_Ratio'] = df['Pressure9am'] / df['Pressure3pm']
     return df
 
 def transform(train_x: pd.DataFrame, train_y: pd.Series, test_x: pd.DataFrame) -> (pd.DataFrame, pd.Series, pd.DataFrame):
-    # categorical_cols = ['SEX', 'ACTIVITY LEVEL', 'MBTI']  # Define categorical columns
-    categorical_cols = ['SEX', 'ACTIVITY LEVEL']  # Define categorical columns
-    numerical_cols = ['AGE', 'HEIGHT', 'WEIGHT', 'E', 'I', 'S', 'N', 'T', 'F', 'J', 'P']  # Define numerical columns
+    numeric_cols = ['MinTemp', 'MaxTemp', 'Rainfall', 'WindGustSpeed', 'WindSpeed9am', 'WindSpeed3pm', 'Humidity9am',
+                    'Humidity3pm',
+                    'Pressure9am', 'Pressure3pm', 'Cloud9am', 'Cloud3pm', 'Temp9am',
+                    'Temp3pm']
 
-    # Encode categorical data and fill missing values
-    train_x = encode_categorical(train_x, categorical_cols)
-    test_x = encode_categorical(test_x, categorical_cols)
+    categorical_cols = ['WindGusDir', 'WindDir9am', 'WindDir3pm', 'RainToday']
+    train_x, test_x = apply_city_specific_normalization(train_x, test_x, numeric_cols)
 
-    # Fill NaNs for numerical columns
-    train_x = fill_nans(train_x)
-    test_x = fill_nans(test_x)
+    geo_features = {
+        'Albury': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'BadgerysCreek': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Cobar': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'CoffsHarbour': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Moree': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Newcastle': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'NorahHead': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'NorfolkIsland': {'Coast': 'Island', 'Ocean': True, 'Desert': False, 'Mountains': False},
+        'Penrith': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Richmond': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Sydney': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'SydneyAirport': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'WaggaWagga': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Williamtown': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Wollongong': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Canberra': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Tuggeranong': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'MountGinini': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Ballarat': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Bendigo': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Sale': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'MelbourneAirport': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Melbourne': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Mildura': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Nhil': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Portland': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': False},
+        'Watsonia': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Dartmoor': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Brisbane': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Cairns': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'GoldCoast': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Townsville': {'Coast': 'East', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Adelaide': {'Coast': 'South', 'Ocean': True, 'Desert': True, 'Mountains': True},
+        'MountGambier': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Nuriootpa': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'Woomera': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Albany': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Witchcliffe': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'PearceRAAF': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'PerthAirport': {'Coast': 'West', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Perth': {'Coast': 'West', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'SalmonGums': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Walpole': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Hobart': {'Coast': 'South', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Launceston': {'Coast': 'None', 'Ocean': False, 'Desert': False, 'Mountains': True},
+        'AliceSprings': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Darwin': {'Coast': 'North', 'Ocean': True, 'Desert': False, 'Mountains': True},
+        'Katherine': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+        'Uluru': {'Coast': 'None', 'Ocean': False, 'Desert': True, 'Mountains': False},
+    }
 
-    # Standardize numerical data
-    train_x = standardize_data(train_x, numerical_cols)
-    test_x = standardize_data(test_x, numerical_cols)
+    train_x = map_geo_1(geo_features, train_x)
+    test_x = map_geo_1(geo_features, test_x)
+    train_x = map_geo_2(geo_features, train_x)
+    test_x = map_geo_2(geo_features, test_x)
+    train_x = map_geo_3(geo_features, train_x)
+    test_x = map_geo_3(geo_features, test_x)
+    train_x = map_geo_4(geo_features, train_x)
+    test_x = map_geo_4(geo_features, test_x)
 
-    return train_x, train_y, test_x"""
-}
+    # add map to climate resilience informaiton
+    train_x = map_geo_to_climate_resilience(train_x)
+    test_x = map_geo_to_climate_resilience(test_x)
 
 
+    categorical = train_x.select_dtypes(include="object").columns
+    cleaner = ColumnTransformer([
+        ('categorical_transformer', SimpleImputer(strategy='most_frequent'), categorical)
+    ])
+    train_x[categorical] = cleaner.fit_transform(train_x[categorical])
+    test_x[categorical] = cleaner.fit_transform(test_x[categorical])
 
+    train_x = encode_categorical(train_x, categorical)
+    test_x = encode_categorical(test_x, categorical)
 
-# TODO : wziąć selekcję top kolumn i zrobić ją wprost z jakimś komentarzem
+    columns_to_remove = ['row ID', 'Evaporation', 'Sunshine']
 
+    train_x = train_x.drop(columns=columns_to_remove)
+    test_x = test_x.drop(columns=columns_to_remove)
 
+    train_x = train_x.fillna(train_x.median())
+    test_x = test_x.fillna(train_x.median())
 
+    train_x = weather_conditions_ratios(train_x)
+    test_x = weather_conditions_ratios(test_x)
 
-ideas_to_check = {
-'shubhamgupta012__titanic-dataset.csv': """
-
-def transform(train_x, train_y, test_x, do_these=()):
-    def extract_title(df):
-        df['Title'] = df['Name'].apply(lambda x: x.split(',')[1].split('.')[0].strip())
-        return df
-
-    def family_size(df):
-        df['FamilySize'] = df['SibSp'] + df['Parch'] + 1
-        df['IsAlone'] = (df['FamilySize'] == 1).astype(int)
-        return df
-
-    def cabin_features(df):
-        df['Cabin'] = df['Cabin'].fillna('Unknown')
-        df['Deck'] = df['Cabin'].apply(lambda x: x[0])
-        return df
-
-    def ticket_prefix(df):
-        df['TicketPrefix'] = df['Ticket'].apply(
-            lambda x: ''.join(filter(str.isalpha, x.split()[0])) if not x.split()[0].isdigit() else 'None')
-        return df
-
-    def age_class_interaction(df):
-        df['Age*Class'] = df['Age'] * df['Pclass']
-        return df
-
-    def fare_per_person(df):
-        df['FarePerPerson'] = df['Fare'] / df['FamilySize']
-        return df
-
-    if 1 in do_these:
-        train_x = extract_title(train_x)
-        test_x = extract_title(test_x)
-
-    if 2 in do_these:
-        train_x = family_size(train_x)
-        test_x = family_size(test_x)
-
-    if 3 in do_these:
-        train_x = cabin_features(train_x)
-        test_x = cabin_features(test_x)
-
-    if 4 in do_these:
-        train_x = ticket_prefix(train_x)
-        test_x = ticket_prefix(test_x)
-
-    if 5 in do_these:       # improves  0.8064516129032258
-        train_x = age_class_interaction(train_x)
-        test_x = age_class_interaction(test_x)
-
-    if 6 in do_these:       # 0.7976539589442815
-        train_x = fare_per_person(train_x)
-        test_x = fare_per_person(test_x)
-
-    # Continue with encoding and other preprocessing
+    # Adding new feature: MaxTemp * Temperature_Range_Ratio
+    train_x['MaxTemp_x_Temperature_Range_Ratio'] = train_x['MaxTemp'] * train_x['Temperature_Range_Ratio']
+    test_x['MaxTemp_x_Temperature_Range_Ratio'] = test_x['MaxTemp'] * test_x['Temperature_Range_Ratio']
+    # Adding new feature: MaxTemp * Temp3pm
+    train_x['MaxTemp_x_Temp3pm'] = train_x['MaxTemp'] * train_x['Temp3pm']
+    test_x['MaxTemp_x_Temp3pm'] = test_x['MaxTemp'] * test_x['Temp3pm']
+    # # Adding new feature: MaxTemp * Temp3pm
+    # train_x['MaxTemp_x_Temp3pm2'] = train_x['MaxTemp'] * train_x['Temp3pm']
+    # test_x['MaxTemp_x_Temp3pm2'] = test_x['MaxTemp'] * test_x['Temp3pm']
+    # Adding new feature: Location / Cloud3pm
+    train_x['Location_div_Cloud3pm'] = train_x['Location'] / train_x['Cloud3pm']
+    test_x['Location_div_Cloud3pm'] = test_x['Location'] / test_x['Cloud3pm']
     return train_x, train_y, test_x
-
 """,
 
+'maajdl__yeh-concret-data.csv':
+"""
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+
+def transform(train_x: pd.DataFrame, train_y: pd.Series, test_x: pd.DataFrame) -> (pd.DataFrame, pd.Series, pd.DataFrame):
+    # do_these=(4, 30, 33, 44)
+    # Adding new feature: cement / water
+    train_x[f'feat_cement_div_water'] = train_x["cement"] / train_x["water"]
+    test_x[f'feat_cement_div_water'] = test_x["cement"] / test_x["water"]
+    # Adding "new" feature: water / "coarseaggregat"
+    train_x[f'feat_water_div_coarseaggregate'] = train_x["water"] / train_x["coarseaggregate"]
+    test_x[f'feat_water_div_coarseaggregate'] = test_x["water"] / test_x["coarseaggregate"]
+    # Adding "new" feature: superplasticizer / "cemen"
+    train_x[f'feat_superplasticizer_div_cement'] = train_x["superplasticizer"] / train_x["cement"]
+    test_x[f'feat_superplasticizer_div_cement'] = test_x["superplasticizer"] / test_x["cement"]
+    # Adding "new" feature: coarseaggregate / "wate"
+    train_x[f'feat_coarseaggregate_div_water'] = train_x["coarseaggregate"] / train_x["water"]
+    test_x[f'feat_coarseaggregate_div_water'] = test_x["coarseaggregate"] / test_x["water"]
+    # Adding "new" feature: slag * "flyas"
+    train_x[f'feat_slag_div_flyash'] = train_x["slag"] * train_x["flyash"]
+    test_x[f'feat_slag_div_flyash'] = test_x["slag"] * test_x["flyash"]
+
+    # Ratio of slag to total components
+    train_x['slag_ratio'] = train_x['slag'] / train_x[
+        ['cement', 'slag', 'flyash', 'water', 'superplasticizer', 'coarseaggregate', 'fineaggregate']].sum(
+        axis=1)
+    test_x['slag_ratio'] = test_x['slag'] / test_x[
+        ['cement', 'slag', 'flyash', 'water', 'superplasticizer', 'coarseaggregate', 'fineaggregate']].sum(
+        axis=1)
+    scaler = StandardScaler()
+    scaler.fit(train_x)
+    train_x = pd.DataFrame(scaler.transform(train_x), columns=train_x.columns)
+    test_x = pd.DataFrame(scaler.transform(test_x), columns=train_x.columns)
+    return train_x, train_y, test_x"""
 }
-
-
