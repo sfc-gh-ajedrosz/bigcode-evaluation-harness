@@ -100,16 +100,15 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=True)
-        # XGBoostModel(enable_categorical=True), TabPFNModel(enable_categorical=True)
+        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=False)
 
         evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
 
         results = evaluator.evaluate(generations, references, do_baseline=False)
         print(results)
 
-
         normalized_score = self.score_normalizer(results)
+        print(f"ds_f_eng normalized_score: {normalized_score}")
         return normalized_score
 
 

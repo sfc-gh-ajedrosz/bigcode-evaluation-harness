@@ -314,7 +314,7 @@ class Evaluator:
             #     continue
             # if dataframe_name in ['shubhamgupta012__titanic-dataset.csv']:
             #     break
-            if dataframe_name not in ["maajdl__yeh-concret-data.csv"]:  #["iabhishekofficial__mobile-price-classification.csv"]:
+            if dataframe_name not in ["arunavakrchakraborty__australia-weather-data.csv"]:  #["iabhishekofficial__mobile-price-classification.csv"]:
                  continue
             data_split = self.data_processor.load_dataframe(dataframe_name)
             print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
@@ -330,13 +330,13 @@ class Evaluator:
                 except:
                     pass
 
-                from .concrete_strenght_regression import final_kernel
+                # from .concrete_strenght_regression import final_kernel
 
-                train_x, train_y, test_x = final_kernel(data_split.train_x, data_split.train_target, data_split.test_x)
-                data_split = DataSplit(test_x, data_split.test_target, train_x, data_split.train_target)
+                # train_x, train_y, test_x = final_kernel(data_split.train_x, data_split.train_target, data_split.test_x)
+                # data_split = DataSplit(test_x, data_split.test_target, train_x, data_split.train_target)
 
                 # data_split = do_concrete_strength_regression_kernel_studies(data_split, self.data_processor, prediction, model)
-                # data_split = do_kernel_studies_weather(data_split, self.data_processor, prediction, model)
+                data_split = do_kernel_studies_weather(data_split, self.data_processor, prediction, model)
 
                 # data_split = self.data_processor.transform_dataframe(prediction, data_split)
                 # from copy import deepcopy
@@ -435,19 +435,21 @@ def do_concrete_strength_regression_kernel_studies(data_split_pre, data_processo
 
 
 def do_kernel_studies_weather(data_split_pre, data_processor, prediction, model, do_study=True):
-    from .kernel_weather_forecast import transform_data
+    from .kernel_weather_forecast import transform_data, transform_data_products, transform_data_divs
     bckp_data_split = deepcopy(data_split_pre)
 
     if do_study:
         results = {}
         improved = []
-        for i in range(30):
+        for i in range(0*22):
             data_split = deepcopy(bckp_data_split)
             train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
             try:
+                # transform data: 1,15,16,21: 0.8574612475897128
                 train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
-                                                          data_split.test_x, do_these=(i,))
-
+                                                          data_split.test_x, do_these=(1,15,16,21,))
+                train_x, train_y, test_x = transform_data_products(train_x, train_y,
+                                                          test_x, do_these=(i,))
                 # train_x, train_y, test_x = transform(train_x, train_y, test_x, do_these=(i,))
             except Exception as e:
                 print(e)
@@ -457,23 +459,35 @@ def do_kernel_studies_weather(data_split_pre, data_processor, prediction, model,
             results[i] = accuracy
             if accuracy > results[0]:
                 improved.append(i)
-
+        results[0] = 0.8574612475897128
+        improved = [25, 60, 70, 77, 185, 251, 260, 283, 284, 299, 324, 327, 329, 377, 426, 429, 437, 445]
+        best_cands = [(60, 185), (70, 77), (77, 445), (25, 251, 284), (25, 260, 283), (25, 284, 426)]
+        new_cands = []
+        for i in range(len(best_cands) - 1):
+            for j in range(i + 1, len(best_cands)):
+                new_cands.append(tuple(set(best_cands[i]).union(set(best_cands[j]))))
+                # new_cand = set(best_cands[i]) + set(best_cands[j])
         # Assuming `improved` is already populated
-        all_combinations = generate_all_combinations(improved)
-        for combo in all_combinations:
+        top_new_cand = (77, 70, 445)
+        for i in range(1000):
             data_split = deepcopy(bckp_data_split)
             train_x, train_y, test_x = data_split.train_x, data_split.train_target, data_split.test_x
-            do_these = combo
             try:
-                train_x, train_y, test_x = transform_data(train_x, train_y, test_x, do_these=do_these)
+                # train_x, train_y, test_x = transform_data(train_x, train_y, test_x, do_these=do_these)
+                train_x, train_y, test_x = transform_data(data_split.train_x, data_split.train_target,
+                                                          data_split.test_x, do_these=(1, 15, 16, 21,))
+                train_x, train_y, test_x = transform_data_products(train_x, train_y,
+                                                                   test_x, do_these=top_new_cand)
+                train_x, train_y, test_x = transform_data_divs(train_x, train_y,
+                                                               test_x, do_these=(i,))
             except Exception as e:
                 print(e)
             new_ds = DataSplit(test_x, data_split.test_target, train_x, train_y)
             accuracy = Evaluator._evaluate(model, new_ds)
-            print(f"Do {do_these} => {accuracy}")
-            results[do_these] = accuracy
+            print(f"Do {top_new_cand}, div({i}) => {accuracy}")
+            results[i] = accuracy
             if accuracy > results[0]:
-                improved.append(do_these)
+                improved.append(i)
 
     # data_split_tfed = DataSplit(test_x, data_split.test_target, train_x, train_y)
     # accuracy = Evaluator._evaluate(model, data_split_tfed)
