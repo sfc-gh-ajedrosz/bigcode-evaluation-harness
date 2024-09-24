@@ -25,10 +25,10 @@ def series_to_prompt(series: pd.Series) -> str:
 
 def series_to_chat(series: pd.Series, df) -> list:
     def _user_turn(_series: pd.Series) -> str:
-        return "Dataset description: {series[DESCRIPTION_COLUMN]}\n\nDataframe features and their descriptions:\n{series[FEATURES_COLUMN]}\n\nDataframe header:\n{series[DATAFRAME_HEADER_COLUMN]}\n\n{TASK_TAIL}"
+        return f"Dataset description: {series[DESCRIPTION_COLUMN]}\n\nDataframe features and their descriptions:\n{series[FEATURES_COLUMN]}\n\nDataframe header:\n{series[DATAFRAME_HEADER_COLUMN]}\n\n{TASK_TAIL}"
 
     def _model_turn(code: str) -> str:
-        return '```\n' + code + '\n```'
+        return '```\n' + code.strip() + '\n```'
 
     keys = list(kernels.keys())
     refs = [k.replace('__', '/').replace('.csv', '') for k in keys]
