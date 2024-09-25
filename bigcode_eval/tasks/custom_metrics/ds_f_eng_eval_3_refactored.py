@@ -250,8 +250,8 @@ class Evaluator:
 
     @staticmethod
     def _evaluate(model: BaseModel, data_split: DataSplit, is_regr: bool = False) -> float:
-        train_x, test_x = data_split.train_x, data_split.test_x
         try:
+            train_x, test_x = data_split.train_x, data_split.test_x
             model.fit(train_x, data_split.train_target)
             predictions = model.predict(test_x)
             if is_regr:
@@ -282,7 +282,6 @@ class Evaluator:
 
             data_split = self.data_processor.load_dataframe(dataframe_name)
             print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
-
             prediction = dataframe_predictions[0]   # FIXME: why like this
             if do_baseline:
                 data_split_transformed = model.baseline_encode(data_split)
@@ -310,6 +309,7 @@ class ScoreNormalizer:
 
     def __call__(self, predictions):
         normalized_scores = []
+        self.baseline_results = {k: v for k, v in self.baseline_results.items() if k in predictions.keys()}
         for dataset_name, baseline_result in self.baseline_results.items():
             metric_name, baseline_score = list(baseline_result.items())[0]
             try:
