@@ -259,7 +259,7 @@ class Evaluator:
             else:
                 score = accuracy_score(data_split.test_target.astype('category').cat.codes, np.round(predictions))
         except Exception as e:
-            print(e)
+            print('Exception', e)
             score = 0 if not is_regr else float("inf")
         return score
 
@@ -283,13 +283,15 @@ class Evaluator:
             data_split = self.data_processor.load_dataframe(dataframe_name)
             print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
             prediction = dataframe_predictions[0]   # FIXME: why like this
+
             if do_baseline:
                 data_split_transformed = model.baseline_encode(data_split)
             else:
-                data_split_transformed = self.data_processor._transform_dataframe_inplace_three_tuple(
+                data_split_transformed = self.data_processor.transform_dataframe(
                     prediction=prediction,
                     data_split=data_split
                 )
+                data_split_transformed = model.baseline_encode(data_split_transformed)
             accuracy = Evaluator._evaluate(model, data_split_transformed, is_regr)
             accuracies[dataframe_name][model.model_slug + ("_MAE" if is_regr else '_ACC')] = accuracy
             self.log_result(f"{dataframe_name}: {accuracy}")
@@ -333,7 +335,7 @@ def error_rate_normalizer_mae(baseline_score: float, predicted_score: float) -> 
     # 1.0 -> 0.25, should be 0.75
     # 1.0 -> 2.1, should be -1
     # 1.0 -> 1.1, should be -0.1
-    error_rate_reduction = 1.0 - min((predicted_score/baseline_score), 2.)
+    error_rate_reduction = 1.0 - min((predicted_score/baseline_score), 1.)
     return error_rate_reduction
 
 
@@ -342,6 +344,6 @@ def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> 
     # 0.9 -> 0.975 , should be 0.75
     baseline_error_rate = 1.0 - baseline_score
     predicted_error_rate = 1.0 - predicted_score
-    error_rate_reduction = max(-1, (baseline_error_rate-predicted_error_rate)/baseline_error_rate)
+    error_rate_reduction = max(0, (baseline_error_rate-predicted_error_rate)/baseline_error_rate)
     return error_rate_reduction
 
