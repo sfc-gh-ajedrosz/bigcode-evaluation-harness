@@ -260,7 +260,7 @@ class Evaluator:
                 score = accuracy_score(data_split.test_target.astype('category').cat.codes, np.round(predictions))
         except Exception as e:
             print(e)
-            score = 0
+            score = 0 if not is_regr else float("inf")
         return score
 
     def evaluate(self,
@@ -305,7 +305,7 @@ class Evaluator:
 class ScoreNormalizer:
     def __init__(self, baseline_results):
         self.baseline_results = baseline_results
-        self.non_answer_penalty = -100
+        self.non_answer_penalty = -1
 
     def __call__(self, predictions):
         normalized_scores = []
@@ -329,9 +329,11 @@ class ScoreNormalizer:
 
 
 def error_rate_normalizer_mae(baseline_score: float, predicted_score: float) -> float:
-    # 2.0 -> 0.5 , should be 0.75
-    # 1.0 -> 0.25 , should be 0.75
-    error_rate_reduction = 1.0 - (predicted_score/baseline_score)
+    # 2.0 -> 0.5, should be 0.75
+    # 1.0 -> 0.25, should be 0.75
+    # 1.0 -> 2.1, should be -1
+    # 1.0 -> 1.1, should be -0.1
+    error_rate_reduction = 1.0 - min((predicted_score/baseline_score), 2.)
     return error_rate_reduction
 
 
@@ -340,6 +342,6 @@ def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> 
     # 0.9 -> 0.975 , should be 0.75
     baseline_error_rate = 1.0 - baseline_score
     predicted_error_rate = 1.0 - predicted_score
-    error_rate_reduction = (baseline_error_rate-predicted_error_rate)/baseline_error_rate
+    error_rate_reduction = max(-1, (baseline_error_rate-predicted_error_rate)/baseline_error_rate)
     return error_rate_reduction
 
