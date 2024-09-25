@@ -11,10 +11,10 @@ import pandas as pd
 from bigcode_eval.tasks.custom_metrics.kernels import kernels
 
 TASK_HEAD = "You will be shown a dataset from a Kaggle competition. The competition is to build a classifier or regressor over this dataset such that it has the highest accuracy possible. Your task is to preprocess this dataset so that an existing model can improve its accuracy. You will be shown a general description of the dataset including a description of the task. This will be followed by a list of features and their descriptions. These features are available in a pandas DataFrame. You should output a single function in Python 3.7+ that will take this dataframe as input and return a modified dataframe with new features. New features can be formed by e.g. keeping the old features unchanged, creating interactions between features, preprocessing features, removing features."
-TASK_TAIL = "Now please write a single function in Python 3.7+ which takes dataframes and returns dataframes with new features."
+TASK_TAIL = "Now please write a single function in Python 3.7+ and Pandas 2.1.3 which takes dataframes and returns dataframes with new features."
 DESCRIPTION_COLUMN = "DESCRIPTION_UPDATED"
 FEATURES_COLUMN = "FEATURES_UPDATED"
-DATAFRAME_HEADER_COLUMN = "head_n30"
+DATAFRAME_HEADER_COLUMN = "head_n4"
 REF_COLUMN = "ref"
 SELECTED_COLUMN = "decision"
 SELECTED_VALUE = "accept"
@@ -25,22 +25,23 @@ def series_to_prompt(series: pd.Series) -> str:
 
 def series_to_chat(series: pd.Series, df) -> list:
     def _user_turn(_series: pd.Series) -> str:
-        return f"Dataset description: {series[DESCRIPTION_COLUMN]}\n\nDataframe features and their descriptions:\n{series[FEATURES_COLUMN]}\n\nDataframe header:\n{series[DATAFRAME_HEADER_COLUMN]}\n\n{TASK_TAIL}"
+        return f"Dataset description: {_series[DESCRIPTION_COLUMN]}\n\nDataframe features and their descriptions:\n{_series[FEATURES_COLUMN]}\n\nDataframe header:\n{_series[DATAFRAME_HEADER_COLUMN]}\n\n{TASK_TAIL}"
 
     def _model_turn(code: str) -> str:
         return '```python\n' + code.strip() + '\n```'
 
     keys = list(kernels.keys())
     refs = [k.replace('__', '/').replace('.csv', '') for k in keys]
+    # import pdb; pdb.set_trace()
 
     return [
        {"role": "system", "text": TASK_HEAD},
        {"role": "user", "text": _user_turn(df[df["ref"] == refs[0]])},
        {"role": "model", "text": _model_turn(kernels[keys[0]])},
-       {"role": "user", "text": _user_turn(df[df["ref"] == refs[1]])},
-       {"role": "model", "text": _model_turn(kernels[keys[1]])},
-       # {"role": "user", "text": _user_turn(df[df["ref"] == refs[2]])},
-       # {"role": "model", "text": _model_turn(kernels[keys[2]])},
+       # {"role": "user", "text": _user_turn(df[df["ref"] == refs[1]])},
+       # {"role": "model", "text": _model_turn(kernels[keys[1]])},
+       {"role": "user", "text": _user_turn(df[df["ref"] == refs[2]])},
+       {"role": "model", "text": _model_turn(kernels[keys[2]])},
        {"role": "user", "text": _user_turn(series)}
     ]
 
