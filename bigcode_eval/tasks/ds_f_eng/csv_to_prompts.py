@@ -28,7 +28,7 @@ def series_to_chat(series: pd.Series, df) -> list:
         return f"Dataset description: {series[DESCRIPTION_COLUMN]}\n\nDataframe features and their descriptions:\n{series[FEATURES_COLUMN]}\n\nDataframe header:\n{series[DATAFRAME_HEADER_COLUMN]}\n\n{TASK_TAIL}"
 
     def _model_turn(code: str) -> str:
-        return '```\n' + code.strip() + '\n```'
+        return '```python\n' + code.strip() + '\n```'
 
     keys = list(kernels.keys())
     refs = [k.replace('__', '/').replace('.csv', '') for k in keys]
@@ -39,8 +39,8 @@ def series_to_chat(series: pd.Series, df) -> list:
        {"role": "model", "text": _model_turn(kernels[keys[0]])},
        {"role": "user", "text": _user_turn(df[df["ref"] == refs[1]])},
        {"role": "model", "text": _model_turn(kernels[keys[1]])},
-       {"role": "user", "text": _user_turn(df[df["ref"] == refs[2]])},
-       {"role": "model", "text": _model_turn(kernels[keys[2]])},
+       # {"role": "user", "text": _user_turn(df[df["ref"] == refs[2]])},
+       # {"role": "model", "text": _model_turn(kernels[keys[2]])},
        {"role": "user", "text": _user_turn(series)}
     ]
 

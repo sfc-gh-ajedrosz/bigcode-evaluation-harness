@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import pandas as pd
 import pickle
+import re
 
 from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval import tabpfn_average_accuracy
 from bigcode_eval.tasks.custom_metrics.ds_f_eng_eval_3_refactored import DataProcessor, \
@@ -20,16 +21,16 @@ class DsFEng(Task):
     answers, generation settings and evaluation methods.
     """
 
-    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_4.jsonl"
-    DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_9"
-    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta9.csv"
-    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/output_log7.jsonl"
-    BASELINE_SCORES = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/baselines_scores3.pickle"
+    DATASET_PATH = "/home/yak/bigcode-evaluation-harness/dataset.jsonl"
+    DATAFRAME_PATH = "/home/yak/bigcode-evaluation-harness/final_9/final_9"
+    METADATA_PATH = "/home/yak/bigcode-evaluation-harness/final_9/meta9.csv"
+    LOGGING_PATH = "/home/yak/bigcode-evaluation-harness/final_9/log.jsonl"
+    BASELINE_SCORES = "/home/yak/bigcode-evaluation-harness/final_9/baselines_scores9.pickle"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
         super().__init__(
-            stop_words=["\nclass", "\ndef", "\n#", "\n@", "\nprint", "\nif", "\n```", "<file_sep>"],
+            stop_words=["\n```"],  # "\nclass", "\ndef", "\n#", "\n@", "\nprint", "\nif", "\n```", "<file_sep>"],
             requires_execution=True,
         )
         self._ds_f_eng_dir = Path(__file__).parent / "ds_f_eng"
@@ -70,7 +71,7 @@ class DsFEng(Task):
         :param doc: dict[str: str]
             sample from the test dataset
         """
-        return doc["prompt"]
+        return "\n\n".join([i["text"] for i in doc["chat"]]) + '\n\n```python\n' # doc["prompt"]
 
     def get_reference(self, doc):
         """Builds the reference solution for the doc.
@@ -86,10 +87,14 @@ class DsFEng(Task):
         :param idx: int
             index of doc in the dataset to which the generation belongs
         """
-        dataset = self.get_dataset()
-        prompt = self.get_prompt(dataset[idx])
-        generation = generation[len(prompt):]
-        return self._stop_at_stop_token(generation, self.stop_words)
+        code = re.findall(
+            r"```python\n([^`]+)(```)?", generation, re.MULTILINE | re.DOTALL
+        )[-1][0]
+        # dataset = self.get_dataset()
+        # prompt = self.get_prompt(dataset[idx])
+        # generation = generation[len(prompt):]
+        return code
+        # return self._stop_at_stop_token(generation, self.stop_words)
 
     def process_results(self, generations, references):
         """Takes the list of LM generations and evaluates them against ground truth references,
@@ -110,5 +115,3 @@ class DsFEng(Task):
         normalized_score = self.score_normalizer(results)
         print(f"ds_f_eng normalized_score: {normalized_score}")
         return normalized_score
-
-
