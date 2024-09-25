@@ -327,6 +327,7 @@ class ScoreNormalizer:
             else:
                 normalized_score = error_rate_normalizer_acc(baseline_score, predicted_score)
             normalized_scores.append(normalized_score)
+        print('normalized_scores', normalized_scores)
         return sum(normalized_scores)/len(normalized_scores)
 
 
@@ -335,8 +336,8 @@ def error_rate_normalizer_mae(baseline_score: float, predicted_score: float) -> 
     # 1.0 -> 0.25, should be 0.75
     # 1.0 -> 2.1, should be -1
     # 1.0 -> 1.1, should be -0.1
-    error_rate_reduction = 1.0 - min((predicted_score/baseline_score), 1.)
-    return error_rate_reduction
+    error_rate_reduction = 1.0 - predicted_score/baseline_score
+    return max(error_rate_reduction, 0)
 
 
 def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> float:
@@ -344,6 +345,6 @@ def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> 
     # 0.9 -> 0.975 , should be 0.75
     baseline_error_rate = 1.0 - baseline_score
     predicted_error_rate = 1.0 - predicted_score
-    error_rate_reduction = max(0, (baseline_error_rate-predicted_error_rate)/baseline_error_rate)
-    return error_rate_reduction
+    error_rate_reduction = (baseline_error_rate-predicted_error_rate)/baseline_error_rate
+    return max(error_rate_reduction, 0)
 

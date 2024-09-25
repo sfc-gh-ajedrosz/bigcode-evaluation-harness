@@ -3,7 +3,9 @@ import math
 import re
 import warnings
 from collections import defaultdict
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
+from multiprocessing import Pool
+from importlib.util import find_spec
 
 import torch
 from torch.utils.data import IterableDataset
@@ -11,6 +13,10 @@ from tqdm import tqdm
 
 INFILL_MODE = False
 INSTRUCTION_MODE = False
+
+
+def is_openai_api(model: str) -> bool:
+    return 'openai-' in model or 'gpt4-' in model or '-gpt4' in model or 'gpt-4' in model
 
 
 class TokenizedDataset(IterableDataset):
@@ -75,7 +81,8 @@ class TokenizedDataset(IterableDataset):
                         **prompt_contents, prefix=self.prefix
                     )
             else:
-                raise ValueError(f"Unsupported prompt format: {type(prompt_contents)}")
+                 prompt = prompt_contents
+            #    raise ValueError(f"Unsupported prompt format: {type(prompt_contents)}")
             prompts.append(prompt)
             if self.has_encoder:
                 prompt_encoder = self.task.get_prompt_encoder(self.dataset[sample])
@@ -221,6 +228,82 @@ def _parse_instruction(code, instruction_tokens):
     return code[idx + shift :]
 
 
+
+class OpenAICompletionDataset(IterableDataset):
+    """Preprocess the dataset for use with an OpenAI/VLLM completions endpoint
+    The prompt can either be:
+    - one prompt: normal code completion
+    - two prompts: instruction-tuning mode (instruction, context)
+    """
+
+    def __init__(
+        self,
+        task,
+        dataset,
+        max_length: int,
+        limit_start: int=0,
+        n_tasks: Optional[int]=None,
+        prefix: str="",
+        instruction_tokens: Optional[Tuple[str, str, str]]=None,
+    ):
+        self.task = task
+        self.dataset = dataset
+        self.max_length = max_length
+        self.limit_start = limit_start
+        self.n_tasks = n_tasks
+        self.prefix = prefix
+        self.instruction_tokens = instruction_tokens
+
+    def __iter__(self):
+        prompts = []
+        for sample in range(self.limit_start, self.limit_start + self.n_tasks):
+            prompt_contents = self.task.get_prompt(self.dataset[sample])
+            if isinstance(prompt_contents, str):
+                # Normal code completion mode
+                prompt = self.prefix + prompt_contents
+            elif isinstance(prompt_contents, dict):
+                if set(prompt_contents.keys()) == {"prefix", "suffix"}:
+                    raise ValueError("Infilling mode is not supported in the OpenAI completions API")
+                elif set(prompt_contents.keys()) == {"instruction", "context"}:
+                    # Instruction-tuning mode
+                    prompt = self._make_instruction_prompt(
+                        **prompt_contents, prefix=self.prefix
+                    )
+                else:
+                    raise ValueError(f"Unsupported prompt keys: {prompt_contents.keys()}")
+            else:
+                prompt = prompt_contents
+            #    raise ValueError(f"Unsupported prompt format: {type(prompt_contents)}")
+            prompts.append(prompt)
+
+        for sample in range(self.n_tasks):
+            yield {
+                "prompt": prompts[sample],
+                "chat": self.dataset[sample]["chat"],
+                "task_id": sample,
+                "input_len": len(prompt),
+            }
+
+    def _make_instruction_prompt(self, instruction, context, prefix=""):
+        """Make a prompt for instruction-tuning. Delimit instruction and context with specific tokens if provided."""
+        if not self.instruction_tokens:
+            warnings.warn(
+                "Instruction-tuning tokens are not provided for an instruction-tuning task, we will leave them empty."
+            )
+            user_token, end_token, assistant_token = "", "", "\n"
+        else:
+            user_token, end_token, assistant_token = self.instruction_tokens
+            if not user_token or not assistant_token or not end_token:
+                warnings.warn(
+                    "Instruction-tuning tokens provided but one or more are empty. Ignore warning if this was intended"
+                )
+        prompt = (
+            prefix + user_token + instruction + end_token + assistant_token + context
+        )
+        return prompt
+
+
+
 def complete_code(
     task,
     accelerator,
@@ -267,7 +350,7 @@ def complete_code(
                 gen_kwargs["stopping_criteria"][idx].input_length = (
                     batch["input_len"].max().item()
                 )
-
+            # import pdb; pdb.set_trace()
             inputs = batch["ids"][:, : batch["input_len"]] if tokenizer.padding_side == "right" else batch["ids"]
             if "ids_encoder" in batch:
                 if is_wrapped:
@@ -280,6 +363,8 @@ def complete_code(
                         **gen_kwargs,
                     )
                 else:
+                    # import pdb
+                    # pdb.set_trace()
                     generated_tokens = model.generate(
                         decoder_input_ids=inputs,
                         input_ids=batch["ids_encoder"][:, : batch["input_len_encoder"]],
@@ -353,6 +438,207 @@ def complete_code(
     )
 
     generations.extend(code_gens)
+    return generations
+
+
+def _process_completion(args):
+    from lm_eval.models.openai_completions import oa_completion  # Lazy requirement
+    import openai
+
+    (max_tokens, prompt, base_url, model, kwargs) = args
+
+    if not find_spec("openai") or not find_spec("tiktoken"):
+        raise Exception(
+            "attempted to use 'openai' LM type, but package `openai` or `tiktoken` are not installed. "
+            "Please install these via `pip install lm-eval[openai]` or `pip install -e .[openai]`"
+        )
+
+    # Hack. All of our azure paths start with sfc.
+    is_azure_openai = model.startswith("sfc")
+    if is_azure_openai:
+        client = openai.AzureOpenAI(
+            api_key=os.environ["OPENAI_API_KEY"], api_version=os.environ["OPENAI_VERSION"],
+            azure_endpoint=os.environ["OPENAI_URL"])
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            completion = oa_completion(
+                    client,
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    chat=True,
+                    **kwargs,
+                )
+            # oa_completion returns None in some failure cases.
+            if completion:
+                data = (
+                    prompt,
+                    completion.choices[0].message.content
+                )
+                print('completion.choices[0].message.content', completion.choices[0].message.content)
+            else:
+                data = (prompt, "openai completion is None")
+        except openai.BadRequestError as e:
+            error_str = f"Got error from openai: {e}"
+            print(error_str)
+            data = (prompt, error_str)
+        return data
+    else:
+        messages = [{"role": "user", "content": prompt}]
+        client = openai.OpenAI(base_url=base_url)
+        try:
+            if 'temperature' in kwargs:
+                kwargs['temperature'] = float(kwargs['temperature'])
+            completion = oa_completion(
+                client,
+                model=model,
+                messages=messages,
+                max_completion_tokens=max_tokens,
+                chat=True,
+                **kwargs,
+            )
+            # oa_completion returns None in some failure cases.
+            if completion:
+                data = (
+                    prompt,
+                    completion.choices[0].message.content
+                )
+                print('completion.choices[0].message.content', completion.choices[0].message.content)
+            else:
+                data = (prompt, "completion is None")
+        except openai.BadRequestError as e:
+            error_str = f"Got error from openai: {e}"
+            print(error_str)
+            data = (prompt, error_str)
+        return data
+
+
+def complete_code_api(
+    task,
+    accelerator,
+    model,
+    tokenizer,
+    dataloader,
+    n_tasks,
+    limit_start=0,
+    batch_size=20,
+    prefix="",
+    instruction_tokens=None,
+    postprocess=True,
+    is_wrapped=False,
+    save_every_k_tasks: int = -1,
+    intermediate_generations: Optional[List[Optional[List[Optional[str]]]]] = None,
+    intermediate_save_generations_path: Optional[str] = None,
+    args=None,
+    **gen_kwargs,
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+
+    code_gens: List[List[Optional[str]]] = [[] for _ in range(n_tasks)]
+    generations = [] if not intermediate_generations else intermediate_generations
+    gen_token_dict = defaultdict(list)  # dict of list of generated tokens
+
+    reqs = []
+    for step, batch in enumerate(dataloader):
+        prompt = batch["prompt"][0]
+        reqs.append(prompt)
+    if False: # isinstance(task, CortexAnalystEval):
+        reqs = [
+            tokenizer.apply_chat_template(
+                [{"role": "user", "content": req}],
+                add_generation_prompt=True,
+                tokenize=False
+            )
+            for req in reqs
+        ]
+
+    code_gens: List[List[Optional[str]]] = [[] for _ in range(n_tasks)]
+    generations = [] if not intermediate_generations else intermediate_generations
+
+    responses = []
+    indices = []
+
+    kwargs = {}
+    if "temperature" in args.model_args:
+        kwargs["temperature"] = args.model_args["temperature"]
+    if "top_p" in args.model_args:
+        kwargs["top_p"] = args.model_args["top_p"]
+
+    _TOKEN_COUNT_LEEWAY = 4
+
+    def _compute_max_tokens(prompt: str) -> int:
+        if args.max_new_tokens is not None:
+            # If both are specified, `max_new_tokens` takes precedence.
+            return args.max_new_tokens
+        elif args.max_length_generation is not None:
+            prompt_token_count = len(tokenizer.tokenize(prompt))
+            if prompt_token_count >= args.max_length_generation:
+                raise ValueError(
+                    f"The prompt ({prompt_token_count} tokens) is longer than the total budgeted "
+                    f"max_length_generation ({args.max_length_generation} tokens)"
+                )
+            return args.max_length_generation - prompt_token_count - _TOKEN_COUNT_LEEWAY
+        return None
+
+    with Pool(batch_size) as p:
+        for step, (prompt, response) in enumerate(tqdm(
+            p.imap(
+                _process_completion,
+                [
+                    (_compute_max_tokens(prompt), prompt, args.model_args['base_url'] if 'base_url' in args.model_args else None, args.model_args['model'], kwargs)
+                    for prompt in reqs
+                ]
+            ),
+            total=n_tasks,
+        )):
+            # For cortex analyst, it is much easier to post process if we only include the response and not the prompt.
+            if False: # isinstance(task, CortexAnalystEval):
+                responses.append(response)
+            else:
+                responses.append(prompt+response)
+            indices.append(step)
+
+            generated_tokens = tokenizer.encode(responses[step])  # For compatibility with postprocessing
+            gen_token_dict[step].append(generated_tokens)
+
+            if save_every_k_tasks >= 1 and (step + 1) % save_every_k_tasks == 0:
+                if not intermediate_save_generations_path:
+                    raise ValueError(
+                        "intermediate_save_generations_path cannot be empty!"
+                    )
+
+                code_gens = update_code_gens(
+                    task,
+                    tokenizer,
+                    limit_start,
+                    prefix,
+                    instruction_tokens,
+                    postprocess,
+                    code_gens,
+                    gen_token_dict,
+                )
+
+                with open(intermediate_save_generations_path, "w") as fp:
+                    json.dump(generations + code_gens, fp)
+                    print(
+                        f"intermediate generations were saved at {intermediate_save_generations_path}"
+                    )
+                # reset gen_token_dict - prevent redundant decoding
+                gen_token_dict = defaultdict(list)
+
+    code_gens = update_code_gens(
+        task,
+        tokenizer,
+        limit_start,
+        prefix,
+        instruction_tokens,
+        postprocess,
+        code_gens,
+        gen_token_dict,
+    )
+
+    generations.extend(code_gens)
+
+    records = None # get_prompt_completion_records(reqs, generations)
     return generations
 
 

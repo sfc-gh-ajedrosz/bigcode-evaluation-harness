@@ -22,8 +22,8 @@ class DsFEng(Task):
     """
 
     DATASET_PATH = "/home/yak/bigcode-evaluation-harness/dataset.jsonl"
-    DATAFRAME_PATH = "/home/yak/bigcode-evaluation-harness/final_9/final_9"
-    METADATA_PATH = "/home/yak/bigcode-evaluation-harness/final_9/meta9.csv"
+    DATAFRAME_PATH = "/home/yak/bigcode-evaluation-harness/final_11"
+    METADATA_PATH = "/home/yak/bigcode-evaluation-harness/meta11.csv"
     LOGGING_PATH = "/home/yak/bigcode-evaluation-harness/final_9/log.jsonl"
     BASELINE_SCORES = "/home/yak/bigcode-evaluation-harness/final_9/baselines_scores9.pickle"
     DATAFRAMES_URL = ""
@@ -71,7 +71,8 @@ class DsFEng(Task):
         :param doc: dict[str: str]
             sample from the test dataset
         """
-        return "\n\n".join([i["text"] for i in doc["chat"]]) + '\n\n```python\n' # doc["prompt"]
+        # return doc["chat"]
+        return "\n\n".join([i["text"] for i in doc["chat"]]) # + '\n\n```python\n' # doc["prompt"]
 
     def get_reference(self, doc):
         """Builds the reference solution for the doc.
@@ -87,6 +88,8 @@ class DsFEng(Task):
         :param idx: int
             index of doc in the dataset to which the generation belongs
         """
+        # import pdb
+        # pdb.set_trace()
         code = re.findall(
             r"```python\n([^`]+)(```)?", generation, re.MULTILINE | re.DOTALL
         )[-1][0]
@@ -105,7 +108,7 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=False)
+        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=True)
 
         evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
 
