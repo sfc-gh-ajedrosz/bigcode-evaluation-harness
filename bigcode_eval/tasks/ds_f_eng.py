@@ -21,11 +21,11 @@ class DsFEng(Task):
     answers, generation settings and evaluation methods.
     """
 
-    DATASET_PATH = "/home/yak/bigcode-evaluation-harness/dataset.jsonl"
-    DATAFRAME_PATH = "/home/yak/bigcode-evaluation-harness/final_11"
-    METADATA_PATH = "/home/yak/bigcode-evaluation-harness/meta11.csv"
-    LOGGING_PATH = "/home/yak/bigcode-evaluation-harness/final_9/log.jsonl"
-    BASELINE_SCORES = "/home/yak/bigcode-evaluation-harness/final_9/baselines_scores9.pickle"
+    DATASET_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/dataset.jsonl"
+    DATAFRAME_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/final_13"
+    METADATA_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/meta13.csv"
+    LOGGING_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/final_9/log.jsonl"
+    BASELINE_SCORES = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/baselines_scores45.pickle"
     DATAFRAMES_URL = ""
 
     def __init__(self, timeout: float = 3.0):
@@ -72,7 +72,8 @@ class DsFEng(Task):
             sample from the test dataset
         """
         # return doc["chat"]
-        return "\n\n".join([i["text"] for i in doc["chat"]]) # + '\n\n```python\n' # doc["prompt"]
+        # return "\n\n".join([i["text"] for i in doc["chat"]]) # + '\n\n```python\n' # doc["prompt"]
+        return json.dumps(doc["chat"])
 
     def get_reference(self, doc):
         """Builds the reference solution for the doc.
@@ -88,11 +89,15 @@ class DsFEng(Task):
         :param idx: int
             index of doc in the dataset to which the generation belongs
         """
+        print(generation)
         # import pdb
         # pdb.set_trace()
-        code = re.findall(
-            r"```python\n([^`]+)(```)?", generation, re.MULTILINE | re.DOTALL
-        )[-1][0]
+        try:
+            code = re.findall(
+                r"```python\n([^`]+)(```)?", generation, re.MULTILINE | re.DOTALL
+            )[-1][0]
+        except:
+            code = ''
         # dataset = self.get_dataset()
         # prompt = self.get_prompt(dataset[idx])
         # generation = generation[len(prompt):]
@@ -108,7 +113,7 @@ class DsFEng(Task):
             list of str containing references
         """
         references = [r.replace("/", "__") + ".csv" for r in references]
-        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=60, allow_no_transform=True)
+        data_processor = DataProcessor(Path(self._dataframes_dir), timeout=600, allow_no_transform=True, target_column=self.metadata.target_col)
 
         evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
 

@@ -8,6 +8,7 @@ from collections import defaultdict, namedtuple
 from typing import List, Dict, Set, Union, Tuple
 from copy import deepcopy
 from itertools import combinations
+from tqdm import tqdm
 
 import bigcode_eval.tasks.custom_metrics.ds_f_eng_kernel_studies
 import pandas as pd
@@ -18,6 +19,8 @@ from sklearn.preprocessing import OneHotEncoder
 import xgboost as xgb
 from tabpfn import TabPFNClassifier
 from pathlib import Path
+
+pd.options.mode.copy_on_write = True
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .execute import unsafe_execute
@@ -92,9 +95,12 @@ class XGBoostModel(BaseModel):
     @staticmethod
     def convert_objects_to_category(df: pd.DataFrame) -> pd.DataFrame:
         # Identify all object columns
-        object_cols = df.select_dtypes(include=['object']).columns
         # Convert each object column to category type
-        df[object_cols] = df[object_cols].astype('category')
+        try:
+            object_cols = df.select_dtypes(include=['object']).columns
+            df[object_cols] = df[object_cols].astype('category')
+        except:
+            pass
         return df
 
 
@@ -144,33 +150,34 @@ class TabPFNModel(BaseModel):
 
 
 class DataProcessor:
-    def __init__(self, dataframe_global_path: Path, timeout: int = 60, allow_no_transform: bool = False) -> None:
+    def __init__(self, dataframe_global_path: Path, timeout: int = 60, allow_no_transform: bool = False, target_column: str = None) -> None:
         self.timeout = timeout
         self.allow_no_transform = allow_no_transform
         self.dataframe_global_path = dataframe_global_path
         self.split_column = "ds_f_eng__split"
         self.train_split = "train"
         self.test_split = "test"
-        self.target_column = "ds_f_eng__target__response"
+        self.target_column = target_column
         self.unnamed = 'Unnamed: 0'
 
-    def load_dataframe(self, dataframe_name: Path) -> DataSplit:
+    def load_dataframe(self, dataframe_name: Path, df_meta) -> DataSplit:
         dataframe_path = self.dataframe_global_path / dataframe_name
         df = pd.read_csv(dataframe_path) if dataframe_path.suffix == ".csv" else pd.read_csv(str(dataframe_path) + ".csv")
         train_dataframe = df[df[self.split_column] == self.train_split]
         test_dataframe = df[df[self.split_column] == self.test_split]
-        return self.prepare_train_test_split(test_dataframe, train_dataframe)
+        target_col = df_meta.target_col.values[0] if not isinstance(df_meta.target_col, str) else df_meta.target_col
+        return self.prepare_train_test_split(test_dataframe, train_dataframe, target_col)
 
-    def prepare_train_test_split(self, test_dataframe: pd.DataFrame, train_dataframe: pd.DataFrame) -> DataSplit:
-        test_dataframe.dropna(subset=[self.target_column], inplace=True)        # FIXME:  is it baseline-related processing or not? if generic run it through all of the datasets
+    def prepare_train_test_split(self, test_dataframe: pd.DataFrame, train_dataframe: pd.DataFrame, target_col_name) -> DataSplit:
+        test_dataframe.dropna(subset=[target_col_name], inplace=True)
         train_dataframe.dropna(axis=1, how='all', inplace=True)
         test_dataframe = test_dataframe[train_dataframe.columns]
-        train_dataframe = train_dataframe.dropna(subset=[self.target_column])
+        train_dataframe = train_dataframe.dropna(subset=[target_col_name])
         ##
-        train_target = train_dataframe[self.target_column]
-        test_target = test_dataframe[self.target_column]
-        train_x = self._remove_columns(train_dataframe, columns_to_remove={self.target_column, self.split_column})
-        test_x = self._remove_columns(test_dataframe, columns_to_remove={self.target_column, self.split_column})
+        train_target = train_dataframe[target_col_name]
+        test_target = test_dataframe[target_col_name]
+        train_x = self._remove_columns(train_dataframe, columns_to_remove={target_col_name, self.split_column})
+        test_x = self._remove_columns(test_dataframe, columns_to_remove={target_col_name, self.split_column})
         return DataSplit(test_x=test_x, test_target=test_target, train_x=train_x, train_target=train_target)
 
     def _remove_columns(self, dataframe: pd.DataFrame, columns_to_remove: Set[str]) -> pd.DataFrame:
@@ -233,10 +240,22 @@ class DataProcessor:
 
     @staticmethod
     def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-        df.columns = df.columns.str.replace('[', '(', regex=False)
-        df.columns = df.columns.str.replace(']', ')', regex=False)
-        df.columns = df.columns.str.replace('<', 'lesser', regex=False)
-        df.columns = df.columns.str.replace('>', 'greater', regex=False)
+        try:
+            df.columns = df.columns.str.replace('[', '(', regex=False)
+        except:
+            pass
+        try:
+            df.columns = df.columns.str.replace(']', ')', regex=False)
+        except:
+            pass
+        try:
+            df.columns = df.columns.str.replace('<', 'lesser', regex=False)
+        except:
+            pass
+        try:
+            df.columns = df.columns.str.replace('>', 'greater', regex=False)
+        except:
+            pass
         return df
 
 
@@ -271,7 +290,7 @@ class Evaluator:
             raise ValueError(f"Expected num. predictions and num. dataframes to be the same, {len(predictions)} != {len(dataframe_names)}")
 
         accuracies = defaultdict(dict)
-        for dataframe_predictions, dataframe_name in zip(predictions, dataframe_names):
+        for dataframe_predictions, dataframe_name in tqdm(zip(predictions, dataframe_names)):
             df_meta = self.metadata[(self.metadata['ref'].str.replace("/", "__") + '.csv') == dataframe_name]
 
             is_regr = (df_meta['task_type'] == 'regression').item()
@@ -280,8 +299,8 @@ class Evaluator:
             else:
                 model = self.models_classification
 
-            data_split = self.data_processor.load_dataframe(dataframe_name)
-            print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
+            data_split = self.data_processor.load_dataframe(dataframe_name, df_meta)
+            # print(f"{dataframe_name}: train_x = {data_split.train_x.shape}  test_x = {data_split.test_x.shape}")
             prediction = dataframe_predictions[0]   # FIXME: why like this
 
             if do_baseline:
@@ -292,6 +311,22 @@ class Evaluator:
                     data_split=data_split
                 )
                 data_split_transformed = model.baseline_encode(data_split_transformed)
+                
+                # if not all(data_split_transformed.train_target == data_split.train_target):
+                #     import pdb
+                #     pdb.set_trace()
+
+                # if data_split.test_target.shape == data_split_transformed.test_target.shape:
+                #     data_split_transformed = DataSplit(
+                #         test_x=data_split_transformed.test_x,
+                #         test_target=data_split.test_target,
+                #         train_x=data_split_transformed.train_x,
+                #         train_target=data_split.train_target
+                #     )
+                # else:
+                #     import pdb
+                #     pdb.set_trace()
+                # data_split_transformed.train_target = data_split.train_target
             accuracy = Evaluator._evaluate(model, data_split_transformed, is_regr)
             accuracies[dataframe_name][model.model_slug + ("_MAE" if is_regr else '_ACC')] = accuracy
             self.log_result(f"{dataframe_name}: {accuracy}")
@@ -299,7 +334,6 @@ class Evaluator:
         return accuracies
 
     def log_result(self, log_result: str):
-        print(log_result)
         with open(self.logging_path, 'at') as fh:
             fh.write(log_result + '\n')
 
@@ -326,8 +360,9 @@ class ScoreNormalizer:
                 normalized_score = error_rate_normalizer_mae(baseline_score, predicted_score)
             else:
                 normalized_score = error_rate_normalizer_acc(baseline_score, predicted_score)
+
             normalized_scores.append(normalized_score)
-        print('normalized_scores', normalized_scores)
+
         return sum(normalized_scores)/len(normalized_scores)
 
 
@@ -336,7 +371,7 @@ def error_rate_normalizer_mae(baseline_score: float, predicted_score: float) -> 
     # 1.0 -> 0.25, should be 0.75
     # 1.0 -> 2.1, should be -1
     # 1.0 -> 1.1, should be -0.1
-    error_rate_reduction = 1.0 - predicted_score/baseline_score
+    error_rate_reduction = 1.0 - predicted_score/(baseline_score + 1e-16)
     return max(error_rate_reduction, 0)
 
 
@@ -345,6 +380,6 @@ def error_rate_normalizer_acc(baseline_score: float, predicted_score: float) -> 
     # 0.9 -> 0.975 , should be 0.75
     baseline_error_rate = 1.0 - baseline_score
     predicted_error_rate = 1.0 - predicted_score
-    error_rate_reduction = (baseline_error_rate-predicted_error_rate)/baseline_error_rate
+    error_rate_reduction = (baseline_error_rate-predicted_error_rate)/(baseline_error_rate + 1e-16)
     return max(error_rate_reduction, 0)
 

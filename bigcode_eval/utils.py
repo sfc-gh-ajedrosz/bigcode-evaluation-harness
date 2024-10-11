@@ -6,6 +6,9 @@ from collections import defaultdict
 from typing import List, Optional, Tuple, Dict, Any
 from multiprocessing import Pool
 from importlib.util import find_spec
+import anthropic
+
+import google.generativeai as genai
 
 import torch
 from torch.utils.data import IterableDataset
@@ -441,11 +444,50 @@ def complete_code(
     return generations
 
 
+
+DEFAULT_URL = (
+    "https://corvoproxy.qa6.us-west-2.aws-dev.app.snowflake.com/v1/textcompletion"
+)
+import requests
+
+
+
+def _corvo(args):
+
+    (max_tokens, prompt, base_url, model, kwargs) = args
+    org_prompt = prompt
+    prompt = json.loads(prompt)
+    system = json.dumps(prompt[0]['text'])
+    user = json.dumps(prompt[1]['text'])
+
+    if 'llama' in model:
+        prompt = f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n {system} <|eot_id|><|start_header_id|>user<|end_header_id|>\n\n {user} <|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    else:
+        prompt = f"[INST] {system} [/INST] {user}"
+
+    params = {
+        "prompts": [prompt],
+        "maxOutputTokens": max_tokens,
+        "temperature": 0.7,
+        "modelDetails": {
+            "name": model.split(':')[-1],
+        },
+        "stop": ['```\n'],
+    }
+    
+    resp = requests.post(url=DEFAULT_URL, json=params)
+    assert resp.status_code == 200
+    data = resp.json()
+    return (org_prompt, data["texts"][0][0])
+
 def _process_completion(args):
     from lm_eval.models.openai_completions import oa_completion  # Lazy requirement
     import openai
 
     (max_tokens, prompt, base_url, model, kwargs) = args
+
+    if 'corvo:' in model:
+        return _corvo(args)
 
     if not find_spec("openai") or not find_spec("tiktoken"):
         raise Exception(
@@ -475,41 +517,102 @@ def _process_completion(args):
                     prompt,
                     completion.choices[0].message.content
                 )
-                print('completion.choices[0].message.content', completion.choices[0].message.content)
             else:
                 data = (prompt, "openai completion is None")
         except openai.BadRequestError as e:
             error_str = f"Got error from openai: {e}"
             print(error_str)
-            data = (prompt, error_str)
+            raise e
+            # data = (prompt, error_str)
         return data
     else:
-        messages = [{"role": "user", "content": prompt}]
-        client = openai.OpenAI(base_url=base_url)
         try:
-            if 'temperature' in kwargs:
-                kwargs['temperature'] = float(kwargs['temperature'])
-            completion = oa_completion(
-                client,
+            messages = json.loads(prompt)
+            def _map(r):
+                if r == 'model':
+                    return 'assistant'
+                return r
+
+            messages = [{"role": _map(p["role"]), "content": p["text"].strip()} for p in messages]
+
+            if 'o1' in model:
+                messages=[{"role": "user", "content": messages[0]["content"] + "\n\n" + messages[1]["content"]}]
+        except:
+            messages = [{"role": "user", "content": prompt}]
+        
+
+        
+    
+        if 'claude' in model:
+            client = anthropic.Anthropic(api_key="") 
+        elif 'gemini' in model or 'gemma' in model:
+            genai.configure(api_key="")
+            generation_config = {
+                # "temperature": 1,
+                # "top_p": 0.95,
+                # "top_k": 40,
+                "max_output_tokens": max_tokens,
+                "response_mime_type": "text/plain",
+            }
+
+            client = genai.GenerativeModel(
+                model_name=model,
+                generation_config=generation_config,
+                # safety_settings = Adjust safety settings
+                # See https://ai.google.dev/gemini-api/docs/safety-settings
+                system_instruction=messages[0]["content"],
+            )
+
+            # 
+        elif 'deepseek' in model:
+            client = openai.OpenAI(api_key="", base_url="https://api.deepseek.com")
+        else:
+            client = openai.OpenAI(base_url=base_url)
+
+        if 'temperature' in kwargs:
+            kwargs['temperature'] = float(kwargs['temperature'])
+
+        if 'top_p' in kwargs:
+            kwargs['top_p'] = float(kwargs['top_p'])
+        
+        if 'o1' not in model:
+            kwargs['stop'] = ['```\n']
+
+        
+        if 'claude' in model:
+            completion = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=messages[0]['content'],
+                messages=messages[1:],
+                stop_sequences=['```\n'],
+            )
+            data = (prompt, completion.content[0].text)
+        elif 'gemini' in model or 'gemma' in model:
+            chat = client.start_chat()
+
+            try:
+                completion = chat.send_message(messages[1]["content"])
+                data = (prompt, completion.text)
+            except genai.types.generation_types.StopCandidateException:
+                print('Recitation error')
+                data = (prompt, '')
+        else:
+            completion = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_completion_tokens=max_tokens,
-                chat=True,
                 **kwargs,
             )
-            # oa_completion returns None in some failure cases.
+
             if completion:
                 data = (
                     prompt,
                     completion.choices[0].message.content
                 )
-                print('completion.choices[0].message.content', completion.choices[0].message.content)
             else:
                 data = (prompt, "completion is None")
-        except openai.BadRequestError as e:
-            error_str = f"Got error from openai: {e}"
-            print(error_str)
-            data = (prompt, error_str)
+
         return data
 
 
@@ -580,13 +683,18 @@ def complete_code_api(
         return None
 
     with Pool(batch_size) as p:
-        for step, (prompt, response) in enumerate(tqdm(
-            p.imap(
-                _process_completion,
-                [
+        run_for = [
                     (_compute_max_tokens(prompt), prompt, args.model_args['base_url'] if 'base_url' in args.model_args else None, args.model_args['model'], kwargs)
                     for prompt in reqs
                 ]
+
+        # _process_completion(run_for[0])
+        # import pdb
+        # pdb.set_trace()
+        for step, (prompt, response) in enumerate(tqdm(
+            p.imap(
+                _process_completion,
+                run_for
             ),
             total=n_tasks,
         )):
