@@ -65,7 +65,7 @@ def parallel_generations(
                 )
 
         # not returning prompts since we never built the dataset
-        return None, generations[:n_tasks]
+        return generations[:n_tasks]
 
     set_seed(args.seed, device_specific=True)
     # Setup generation settings
