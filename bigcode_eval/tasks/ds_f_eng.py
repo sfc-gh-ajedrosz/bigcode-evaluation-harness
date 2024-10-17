@@ -20,13 +20,18 @@ class DsFEng(Task):
     """A task represents an entire benchmark including its dataset, problems,
     answers, generation settings and evaluation methods.
     """
-
-    DATASET_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/dataset.jsonl"
-    DATAFRAME_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/final_13"
-    METADATA_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/meta13.csv"
-    LOGGING_PATH = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/final_9/log.jsonl"
-    BASELINE_SCORES = "/Users/lborchmann/Documents/bench/bigcode-evaluation-harness/baselines_scores45.pickle"
+    # tmp_jsonlines_5 -import pandas
+    # tmp_jsonlines_6 - import pandas, numpy
+    DATASET_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines/dataset_placeholder_4.jsonl"
+    DATAFRAME_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/final_13"
+    METADATA_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/merged_df_final_with_regression_and_meta13.csv"
+    LOGGING_PATH = "/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/tmp_jsonlines_7/output_log7.jsonl"
+    BASELINE_SCORES = ("/Users/mpietruszka/Repos/ds-f-eng/auto-feature-engineering/"
+                       "tmp_jsonlines_7/baseline3.pickle")
+                       #"/baselines_scores50.pickle")
     DATAFRAMES_URL = ""
+    import os
+    os.makedirs(LOGGING_PATH, exist_ok=True)
 
     def __init__(self, timeout: float = 3.0):
         super().__init__(
@@ -104,7 +109,7 @@ class DsFEng(Task):
         return code
         # return self._stop_at_stop_token(generation, self.stop_words)
 
-    def process_results(self, generations, references):
+    def process_results(self, generations, references, args):
         """Takes the list of LM generations and evaluates them against ground truth references,
         returning the metric for the generations.
         :param generations: list(list(str))
@@ -112,14 +117,25 @@ class DsFEng(Task):
         :param references: list(str)
             list of str containing references
         """
+        do_baseline = False
+        model_output_name = args.load_generations_path.split("/")[-1][:-5]
+        model_output_name = "baseline5" if do_baseline else model_output_name
         references = [r.replace("/", "__") + ".csv" for r in references]
         data_processor = DataProcessor(Path(self._dataframes_dir), timeout=600, allow_no_transform=True, target_column=self.metadata.target_col)
+        logging_dir = "/".join(self.LOGGING_PATH.split("/")[:-1])
+        evaluator = Evaluator(data_processor, f"{logging_dir}/{model_output_name}.jsonl", self.metadata)
 
-        evaluator = Evaluator(data_processor, self.LOGGING_PATH, self.metadata)
+        results = evaluator.evaluate(generations, references, do_baseline=do_baseline)
 
-        results = evaluator.evaluate(generations, references, do_baseline=False)
         print(results)
+        # Specify the filename for the pickle file
+        pickle_filename = f"{logging_dir}/{model_output_name}.pickle"
 
+        # Open the file in binary write mode and dump the 'results' dictionary
+        with open(pickle_filename, 'wb') as file:
+            pickle.dump(results, file)
+
+        print(f"Results have been serialized to '{pickle_filename}'.")
         normalized_score = self.score_normalizer(results)
         print(f"ds_f_eng normalized_score: {normalized_score}")
         return normalized_score

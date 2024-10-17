@@ -212,7 +212,17 @@ class DataProcessor:
         if os.getenv("HF_ALLOW_CODE_EVAL", 0) != "1":
             raise ValueError(_WARNING)
         # TODO(ajedrosz): header constant
-        df_transformation_with_assignment = f"""{prediction}
+        dupa_do_not_recover_fails = False       # False- inplace
+        if dupa_do_not_recover_fails:
+            data_split_pre_saved = deepcopy(data_split)
+
+        dupa_use_weather_kernel_always = True
+        if dupa_use_weather_kernel_always:
+            with open("/Users/mpietruszka/Repos/aj-bigcode/bigcode_eval/tasks/custom_metrics/kernel_in_the_prompt.txt", "rt") as dupa_fh:
+                prediction = dupa_fh.read()
+
+
+        df_transformation_with_assignment = f"""import pandas as pd\nimport numpy as np\n{prediction}
         \nnew_train_x, new_train_target, new_test_x  = transform(train_x, train_target, test_x)"""
         # TODO(ajedrosz): need to copy?
         exec_globals = {"test_x": data_split.test_x,
@@ -225,7 +235,15 @@ class DataProcessor:
             timeout=self.timeout,
             exec_globals=exec_globals,
         )
-        if result.pop() != "passed":
+        res = result.pop()
+        if res != "passed":
+            if self.this_target_column in res:
+                print(f"DUPA ERROR TARGET COLUMN {res}")
+            else:
+                print(f"DUPA ERROR {res}")
+            if dupa_do_not_recover_fails:
+                return data_split_pre_saved
+
             return None
         else:
             new_data_split = DataSplit(exec_globals["new_test_x"], data_split.test_target, exec_globals["new_train_x"], exec_globals["new_train_target"])
@@ -234,9 +252,9 @@ class DataProcessor:
     def transform_dataframe(self, prediction: str, data_split: DataSplit) -> DataSplit:
         transformed_ds = self._transform_dataframe_inplace_three_tuple(prediction, data_split)
         if transformed_ds is None:
-            return data_split
+            return data_split, True
         else:
-            return transformed_ds
+            return transformed_ds, False
 
     @staticmethod
     def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -286,13 +304,27 @@ class Evaluator:
                  predictions: List[str], dataframe_names: List[Path],
                  do_baseline: bool = False
                  ) -> Dict[str, Dict[str, float]]:
+        kernels = ['dhanasekarjaisankar__correlation-between-posture-personality-trait.csv',
+                   'arunavakrchakraborty__australia-weather-data.csv',
+                   'maajdl__yeh-concret-data.csv',
+                   "anmolkumar__janatahack-healthcare-analytics-part-2.csv"
+        ]
+        new_dataframe_names = []
+        for idk, df_name in enumerate(dataframe_names):
+            if df_name not in kernels:
+                new_dataframe_names.append(df_name)
+            else:
+                print(idk)
+        dataframe_names = new_dataframe_names
         if len(predictions) != len(dataframe_names):
             raise ValueError(f"Expected num. predictions and num. dataframes to be the same, {len(predictions)} != {len(dataframe_names)}")
 
         accuracies = defaultdict(dict)
         for dataframe_predictions, dataframe_name in tqdm(zip(predictions, dataframe_names)):
+            # if dataframe_name != 'redpen12__employees-satisfaction-analysis.csv':
+            #     continue
             df_meta = self.metadata[(self.metadata['ref'].str.replace("/", "__") + '.csv') == dataframe_name]
-
+            self.data_processor.this_target_column = df_meta.target_col.values[0]
             is_regr = (df_meta['task_type'] == 'regression').item()
             if is_regr:
                 model = self.models_regression
@@ -304,14 +336,19 @@ class Evaluator:
             prediction = dataframe_predictions[0]   # FIXME: why like this
 
             if do_baseline:
-                data_split_transformed = model.baseline_encode(data_split)
+                data_split_transformed, is_fail = self.data_processor.transform_dataframe(
+                    prediction="",
+                    data_split=data_split
+                )
+                data_split_transformed = model.baseline_encode(data_split_transformed)
+                is_fail = False
             else:
-                data_split_transformed = self.data_processor.transform_dataframe(
+                data_split_transformed, is_fail = self.data_processor.transform_dataframe(
                     prediction=prediction,
                     data_split=data_split
                 )
                 data_split_transformed = model.baseline_encode(data_split_transformed)
-                
+
                 # if not all(data_split_transformed.train_target == data_split.train_target):
                 #     import pdb
                 #     pdb.set_trace()
@@ -329,7 +366,9 @@ class Evaluator:
                 # data_split_transformed.train_target = data_split.train_target
             accuracy = Evaluator._evaluate(model, data_split_transformed, is_regr)
             accuracies[dataframe_name][model.model_slug + ("_MAE" if is_regr else '_ACC')] = accuracy
-            self.log_result(f"{dataframe_name}: {accuracy}")
+            accuracies[dataframe_name]["is_fail"] = is_fail
+            self.log_result(f"{dataframe_name}: {accuracy} | {is_fail}")
+            print(f"{dataframe_name}: {accuracy} | {is_fail}")
 
         return accuracies
 
@@ -337,8 +376,8 @@ class Evaluator:
         with open(self.logging_path, 'at') as fh:
             fh.write(log_result + '\n')
 
-
 class ScoreNormalizer:
+
     def __init__(self, baseline_results):
         self.baseline_results = baseline_results
         self.non_answer_penalty = -1
